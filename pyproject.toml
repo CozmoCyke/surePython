@@ -9,6 +9,8 @@ description = "SurePython v0.1 - controlled Python micro-modifications"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "libcst>=1.8",
+  "pytest>=9.0",
 ]
 
 [project.scripts]

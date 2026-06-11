@@ -37,46 +37,18 @@ class AddDocstringResult:
     message: str
 
 
-def _classify_node(node: ast.AST, class_stack: list[str]) -> str:
-    return "method" if class_stack else "function"
-
-
 def _has_docstring(node: ast.AST) -> bool:
     return ast.get_docstring(node) is not None
 
 
-def _load_lines(source: str) -> list[str]:
-    lines = source.splitlines(keepends=True)
-    if not lines:
-        return [""]
-    return lines
-
-
-def _insert_docstring(source: str, node: ast.AST) -> str:
-    lines = _load_lines(source)
-    body = getattr(node, "body", None)
-    if not isinstance(body, list) or not body:
-        raise GitError("Target body is empty")
-    first_stmt = body[0]
-    first_line_index = getattr(first_stmt, "lineno", None)
-    if first_line_index is None:
-        raise GitError("Unable to locate function body")
-    line_text = lines[first_line_index - 1]
-    indent = line_text[: len(line_text) - len(line_text.lstrip())]
-    lines.insert(first_line_index - 1, f"{indent}{TODO_DOCSTRING}\n")
-    return "".join(lines)
-
-
-def _find_target_node(module: ast.Module, target_qname: str) -> ast.AST:
-    parts = target_qname.split(".")
-
-    def walk(nodes: list[ast.AST], prefix: list[str], class_stack: list[str]) -> ast.AST | None:
+def _find_target_node(module: ast.Module, target_qname: str) -> ast.AST | None:
+    def walk(nodes: list[ast.AST], prefix: list[str]) -> ast.AST | None:
         for node in nodes:
             if isinstance(node, ast.ClassDef):
                 qname = ".".join([*prefix, node.name])
                 if qname == target_qname:
                     return node
-                found = walk(node.body, [*prefix, node.name], [*class_stack, node.name])
+                found = walk(node.body, [*prefix, node.name])
                 if found is not None:
                     return found
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -85,7 +57,7 @@ def _find_target_node(module: ast.Module, target_qname: str) -> ast.AST:
                     return node
         return None
 
-    return walk(module.body, [], [])  # type: ignore[return-value]
+    return walk(module.body, [])
 
 
 def _resolve_target(records, target: str) -> str:
@@ -150,6 +122,54 @@ def _write_state(
             message=message,
         )
     )
+
+
+class _DocstringInserter(cst.CSTTransformer):
+    def __init__(self, target_qname: str) -> None:
+        self.target_qname = target_qname
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.matched = False
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        self.scope.pop()
+        return updated_node
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        is_target = qname == self.target_qname
+        self.function_stack.append(is_target)
+        if is_target:
+            body = node.body.body
+            if body:
+                first_stmt = body[0]
+                if (
+                    isinstance(first_stmt, cst.SimpleStatementLine)
+                    and len(first_stmt.body) == 1
+                    and isinstance(first_stmt.body[0], cst.Expr)
+                    and isinstance(first_stmt.body[0].value, cst.SimpleString)
+                ):
+                    raise GitError("Target already has a docstring")
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+        self.matched = True
+        docstring_line = cst.SimpleStatementLine(
+            [cst.Expr(cst.SimpleString(TODO_DOCSTRING))]
+        )
+        body = updated_node.body.with_changes(
+            body=(docstring_line, *updated_node.body.body)
+        )
+        return updated_node.with_changes(body=body)
 
 
 def add_docstring(
@@ -229,8 +249,27 @@ def add_docstring(
         )
         raise GitError("Target already has a docstring")
 
-    updated_source = _insert_docstring(source, node)
-    file_path.write_text(updated_source, encoding="utf-8")
+    cst_module = cst.parse_module(source)
+    transformer = _DocstringInserter(target_qname)
+    updated_module = cst_module.visit(transformer)
+    if not transformer.matched:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            operation="add-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target symbol not found",
+        )
+        raise GitError("Target symbol not found")
+
+    file_path.write_text(updated_module.code, encoding="utf-8")
     after_sha256 = sha256_file(file_path)
 
     stat, diff_text = git_diff(context.root)
@@ -278,4 +317,3 @@ def add_docstring(
         status=status,
         message=message,
     )
-
