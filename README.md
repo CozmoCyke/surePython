@@ -24,7 +24,12 @@ Exemples:
 ```powershell
 python -m surepython scan .
 python -m surepython add-docstring tests\fixtures\sample_module.py --function sample_function --test
+python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method
 python -m surepython diff
 python -m surepython log --db .\didier_lab.db
 ```
 
+Implementation note:
+
+- The local `.vendor3` tree and `sitecustomize.py` bootstrap remain in place as an environment fix for ACL issues in this workspace.
+- They are documented as bootstrap infrastructure, not behavioral shims.

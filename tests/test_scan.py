@@ -37,3 +37,15 @@ def test_scan_project_walks_python_files(tmp_path: Path) -> None:
     records = scan_project(root)
     assert {record.qualified_name for record in records} == {"a", "B", "B.c"}
 
+
+def test_scan_fixture_includes_class_method_targets() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "sample_module.py"
+    records = scan_file(fixture)
+    assert [record.qualified_name for record in records] == [
+        "sample_function",
+        "sample_method",
+        "SampleClass",
+        "SampleClass.sample_method",
+        "OtherClass",
+        "OtherClass.sample_method",
+    ]

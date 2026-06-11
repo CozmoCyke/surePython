@@ -1,8 +1,16 @@
 def sample_function():
-    return 1
+    return "function"
+
+
+def sample_method():
+    return "global"
 
 
 class SampleClass:
     def sample_method(self):
-        return 2
+        return "class"
 
+
+class OtherClass:
+    def sample_method(self):
+        return "other"
