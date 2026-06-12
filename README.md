@@ -24,6 +24,7 @@ Pipeline:
 - `add-docstring`
 - `diff`
 - `log`
+- `rollback`
 
 `scan` supports:
 
@@ -41,6 +42,7 @@ Pipeline:
 - Refuse ambiguous targets.
 - Refuse silent edits.
 - Never do a global rewrite.
+- Roll back only one logged operation at a time.
 
 ## Current State
 
@@ -51,6 +53,7 @@ Pipeline:
 - Phase 1.4: dry-run previews
 - Phase 1.5: pytest test integration
 - Phase 1.6: automatic SQLite logging for add-docstring
+- Phase 1.7: explicit rollback for logged add-docstring operations
 
 ## Examples
 
@@ -63,6 +66,8 @@ python -m surepython add-docstring tests\fixtures\sample_module.py --function Sa
 python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run
 python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --test
 python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --test --db .\surepython_lab.db
+python -m surepython rollback --last --db .\surepython_lab.db --dry-run
+python -m surepython rollback --last --db .\surepython_lab.db
 python -m surepython diff
 python -m surepython log --db .\didier_lab.db
 ```
@@ -70,6 +75,7 @@ python -m surepython log --db .\didier_lab.db
 `--test` runs `python -m pytest` after a real edit and reports the result.
 `--dry-run` previews the diff only and does not execute tests.
 `--db` stores the operation in SQLite automatically without replacing `surepython log`.
+`rollback --last` requires `--db`, verifies hashes, shows a diff, and only supports logged `add-docstring` operations.
 
 ## Local Environment Note
 

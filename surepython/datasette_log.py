@@ -119,3 +119,55 @@ def insert_record(db_path: Path, record: OperationRecord) -> None:
     finally:
         connection.close()
 
+
+def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                created_at,
+                project_path,
+                file_path,
+                operation,
+                symbol,
+                before_sha256,
+                after_sha256,
+                git_diff,
+                pytest_command,
+                pytest_exit_code,
+                pytest_status,
+                status,
+                message
+            FROM surepython_operations
+            WHERE operation = 'add-docstring'
+              AND status IN ('applied', 'tested', 'failed')
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        raise FileNotFoundError("No applicable add-docstring operation found")
+
+    return OperationRecord(
+        created_at=row[0],
+        project_path=row[1],
+        file_path=row[2],
+        operation=row[3],
+        symbol=row[4],
+        before_sha256=row[5],
+        after_sha256=row[6],
+        git_diff=row[7],
+        pytest_command=row[8],
+        pytest_exit_code=row[9],
+        pytest_status=row[10],
+        status=row[11],
+        message=row[12],
+    )

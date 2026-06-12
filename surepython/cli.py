@@ -10,6 +10,7 @@ import sys
 from .codemods import add_docstring
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
+from .rollback import rollback_last
 from .scanner import scan_project
 
 
@@ -167,6 +168,30 @@ def _cmd_log(db: Path) -> int:
     return 0
 
 
+def _cmd_rollback(last: bool, db: Path, dry_run: bool) -> int:
+    if not last:
+        _print_error("Only --last rollback is supported")
+        return 1
+    try:
+        result = rollback_last(db, dry_run=dry_run)
+    except (FileNotFoundError, GitError) as exc:
+        _print_error(str(exc))
+        return 1
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {result.project_root}")
+    print("Operation:\n  rollback")
+    print(f"Target:\n  {result.file_path.name}::{result.symbol}")
+    print("Mode:")
+    print("  Dry run; no files changed." if dry_run else "  Applied rollback.")
+    print("Rollback diff:")
+    if result.preview_diff_text:
+        print(result.preview_diff_text.rstrip())
+    print("Log:")
+    print(f"  SQLite: {result.db_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="surepython", description="SurePython v0.1")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -188,6 +213,11 @@ def build_parser() -> argparse.ArgumentParser:
     log_parser = subparsers.add_parser("log", help="Log the last operation to SQLite")
     log_parser.add_argument("--db", type=Path, required=True)
 
+    rollback_parser = subparsers.add_parser("rollback", help="Rollback a logged operation")
+    rollback_parser.add_argument("--last", action="store_true", required=True)
+    rollback_parser.add_argument("--db", type=Path, required=True)
+    rollback_parser.add_argument("--dry-run", action="store_true")
+
     return parser
 
 
@@ -203,6 +233,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_diff()
     if args.command == "log":
         return _cmd_log(args.db)
+    if args.command == "rollback":
+        return _cmd_rollback(args.last, args.db, args.dry_run)
     parser.error("unknown command")
     return 2
 
