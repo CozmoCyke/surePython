@@ -76,13 +76,54 @@ def _bom_variants(current_bom: bytes) -> list[bytes]:
     return unique
 
 
+def _split_lines_keepends(data: bytes) -> list[bytes]:
+    return data.splitlines(keepends=True)
+
+
+def _byte_line_removal_candidates(
+    source_bytes: bytes,
+    restored_source: str,
+    *,
+    bom: bytes,
+    encoding: str,
+) -> list[bytes]:
+    lines = _split_lines_keepends(source_bytes)
+    candidates: list[bytes] = []
+    encoded_docstring = TODO_DOCSTRING.encode(encoding)
+
+    for index, line in enumerate(lines):
+        if encoded_docstring not in line:
+            continue
+        candidate = b"".join([*lines[:index], *lines[index + 1 :]])
+        try:
+            decoded, _, _ = _decode_python_bytes(candidate)
+        except UnicodeDecodeError:
+            continue
+        if decoded == restored_source and candidate not in candidates:
+            candidates.append(candidate)
+
+    if bom and not source_bytes.startswith(bom):
+        return candidates
+    return candidates
+
+
 def _select_restored_bytes(
+    source_bytes: bytes,
     restored_source: str,
     *,
     current_bom: bytes,
     encoding: str,
     expected_sha256: str,
 ) -> bytes:
+    for candidate in _byte_line_removal_candidates(
+        source_bytes,
+        restored_source,
+        bom=current_bom,
+        encoding=encoding,
+    ):
+        if _sha256_bytes(candidate) == expected_sha256:
+            return candidate
+
     for text_variant in _newline_variants(restored_source):
         for bom_variant in _bom_variants(current_bom):
             candidate = _encode_python_text(text_variant, bom_variant, encoding)
@@ -182,6 +223,7 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
 
     restored_source = updated_module.code
     restored_bytes = _select_restored_bytes(
+        source_bytes,
         restored_source,
         current_bom=bom,
         encoding=encoding,

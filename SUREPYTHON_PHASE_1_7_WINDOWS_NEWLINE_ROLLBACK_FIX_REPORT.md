@@ -31,6 +31,7 @@ Rollback now:
 - reads the target file with `read_bytes()`
 - decodes UTF-8 explicitly while preserving BOM state
 - builds rollback output in memory
+- first attempts to remove the exact docstring line from the current byte stream
 - generates byte candidates for the supported newline/BOM variants
 - selects only the candidate whose SHA-256 equals `before_sha256`
 - writes with `write_bytes()` only after the candidate hash has already been validated
@@ -67,4 +68,3 @@ git status --short
 - No rollback approximation was introduced.
 - No automatic rollback was introduced.
 - Public tag `v0.1.2-public-preview` remains fixed on `5e3a0591581fcc735b828688793b91eb008d5ef2`.
-
