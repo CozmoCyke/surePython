@@ -1,0 +1,119 @@
+# Windows Troubleshooting
+
+This project has been validated on Windows, including CRLF rollback behavior. Some failures are environment issues, not SurePython behavior issues.
+
+## Python 3.12 And Broken `.venv`
+
+Symptom:
+
+```text
+The system cannot find the path specified
+```
+
+or a `.venv\Scripts\python.exe` launcher points to a removed Python installation.
+
+Cause:
+
+The virtual environment was created with an interpreter path that no longer exists, for example under:
+
+```text
+C:\Users\Lenovo\AppData\Local\Programs\Python\Python312\
+```
+
+Fix:
+
+```powershell
+Remove-Item -Recurse -Force .\.venv
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Do not reintroduce local behavioral shims for `libcst` or `pytest` to work around a broken environment.
+
+## Python Hermes Or Launcher Confusion
+
+If `python` launches an unexpected shim or managed runtime, call the intended interpreter explicitly:
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython --help
+.\.venv\Scripts\python.exe -m pytest
+```
+
+In Codex-managed environments, a bundled runtime may be used for validation when the local `.venv` is broken. That is an environment workaround, not a SurePython behavior change.
+
+## Pytest Temporary Directory ACLs
+
+Symptoms can include pytest failing before tests execute because it cannot access temporary folders under:
+
+```text
+C:\Users\<user>\AppData\Local\Temp\pytest-of-<user>
+```
+
+or local `.pytest_tmp` permission issues.
+
+Workaround:
+
+```powershell
+New-Item -ItemType Directory -Force .\.tmp
+$env:TEMP = "$PWD\.tmp"
+$env:TMP = "$PWD\.tmp"
+.\.venv\Scripts\python.exe -m pytest --basetemp .\.tmp\pytest
+```
+
+If this fixes the run, the issue is local ACL state.
+
+## `.vendor3` And `sitecustomize.py`
+
+Earlier phases removed root-level behavioral shims such as local fake `libcst.py` or `pytest.py`.
+
+The remaining `.vendor3` and `sitecustomize.py`, when present, are local bootstrap infrastructure for dependency loading in this workspace. They must not be described as replacements for official packages.
+
+## LF, CRLF, BOM, And Final Newline
+
+Rollback must be byte-exact.
+
+On Windows, text-mode file operations can accidentally change:
+
+- LF versus CRLF
+- final newline bytes
+- UTF-8 BOM presence
+
+SurePython rollback now reconstructs bytes in memory and writes with byte APIs only after the restored hash matches `before_sha256`.
+
+If rollback refuses with:
+
+```text
+Rollback result does not match logged before_sha256
+```
+
+do not bypass the check. First determine whether the SQLite record is coherent.
+
+## Historical Records: `legacy/unverifiable`
+
+A record is `legacy/unverifiable` when:
+
+- the current file matches logged `after_sha256`
+- no reconstructible restored state matches logged `before_sha256`
+- reasonable variants for encoding, BOM, LF/CRLF, and final newline do not recover the hash
+
+Contract:
+
+- SurePython refuses rollback
+- no file is modified
+- the historical hash is not replaced
+- Git is not silently treated as a substitute truth source
+
+This is a successful guardrail. It prevents SurePython from pretending to restore an operation it cannot prove.
+
+## Clean Git Requirement
+
+Most SurePython write paths require a clean worktree.
+
+Check:
+
+```powershell
+git status --short
+```
+
+If it is not empty, decide explicitly whether to commit, stash, or stop. Do not let an agent work around this guardrail silently.
