@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import difflib
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,7 @@ class AddDocstringResult:
     symbol: str
     before_sha256: str
     after_sha256: str
+    preview_diff_text: str | None
     git_stat: str
     git_diff_text: str
     pytest_command: str | None
@@ -88,6 +90,17 @@ def _run_pytest(command: str, cwd: Path) -> tuple[int, str]:
     )
     output = (completed.stdout or "") + (completed.stderr or "")
     return completed.returncode, output.strip()
+
+
+def _preview_diff(file_path: Path, before: str, after: str) -> str:
+    return "".join(
+        difflib.unified_diff(
+            before.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile=str(file_path),
+            tofile=str(file_path),
+        )
+    ).rstrip("\n")
 
 
 def _write_state(
@@ -179,6 +192,7 @@ def add_docstring(
     project_root: Path | None = None,
     run_tests: bool = False,
     test_command: str | None = None,
+    dry_run: bool = False,
 ) -> AddDocstringResult:
     file_path = file_path.resolve()
     if not file_path.exists():
@@ -269,16 +283,22 @@ def add_docstring(
         )
         raise GitError("Target symbol not found")
 
-    file_path.write_text(updated_module.code, encoding="utf-8")
-    after_sha256 = sha256_file(file_path)
+    updated_source = updated_module.code
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
 
-    stat, diff_text = git_diff(context.root)
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        file_path.write_text(updated_source, encoding="utf-8")
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
 
     pytest_exit_code: int | None = None
     pytest_status: str | None = None
     pytest_command = None
-    status = "applied"
-    message = "Added skeleton docstring."
+    status = "planned" if dry_run else "applied"
+    message = "Planned skeleton docstring." if dry_run else "Added skeleton docstring."
 
     if run_tests:
         pytest_command = test_command or "pytest"
@@ -286,22 +306,26 @@ def add_docstring(
         pytest_status = "passed" if pytest_exit_code == 0 else "failed"
         if pytest_output:
             message = f"{message} Pytest output: {pytest_output}"
-        status = "tested" if pytest_exit_code == 0 else "failed"
+        if not dry_run:
+            status = "tested" if pytest_exit_code == 0 else "failed"
+        else:
+            status = "planned"
 
-    _write_state(
-        project_root=context.root,
-        file_path=file_path,
-        operation="add-docstring",
-        symbol=target_qname,
-        before_sha256=before_sha256,
-        after_sha256=after_sha256,
-        git_diff_text=diff_text,
-        pytest_command=pytest_command,
-        pytest_exit_code=pytest_exit_code,
-        pytest_status=pytest_status,
-        status=status,
-        message=message,
-    )
+    if not dry_run:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            operation="add-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
 
     return AddDocstringResult(
         file_path=file_path,
@@ -309,6 +333,7 @@ def add_docstring(
         symbol=target_qname,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
         git_stat=stat,
         git_diff_text=diff_text,
         pytest_command=pytest_command,

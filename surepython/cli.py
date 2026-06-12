@@ -79,7 +79,13 @@ def _cmd_scan(path: Path, output_format: str) -> int:
     return 0
 
 
-def _cmd_add_docstring(file_path: Path, function: str, test: bool, test_command: str | None) -> int:
+def _cmd_add_docstring(
+    file_path: Path,
+    function: str,
+    test: bool,
+    test_command: str | None,
+    dry_run: bool,
+) -> int:
     try:
         result = add_docstring(
             file_path,
@@ -87,6 +93,7 @@ def _cmd_add_docstring(file_path: Path, function: str, test: bool, test_command:
             project_root=file_path.parent,
             run_tests=test,
             test_command=test_command,
+            dry_run=dry_run,
         )
     except GitError as exc:
         _print_error(str(exc))
@@ -101,13 +108,20 @@ def _cmd_add_docstring(file_path: Path, function: str, test: bool, test_command:
     print("  Git clean: OK")
     print("  File inside project: OK")
     print("  LibCST parse: OK")
-    print("Applied:")
-    print("  Added skeleton docstring.")
-    print("Diff:")
-    if result.git_stat.strip():
-        print(result.git_stat.rstrip())
-    if result.git_diff_text.strip():
-        print(result.git_diff_text.rstrip())
+    if dry_run:
+        print("Mode:")
+        print("  Dry run; no files changed.")
+        print("Preview diff:")
+        if result.preview_diff_text:
+            print(result.preview_diff_text.rstrip())
+    else:
+        print("Applied:")
+        print("  Added skeleton docstring.")
+        print("Diff:")
+        if result.git_stat.strip():
+            print(result.git_stat.rstrip())
+        if result.git_diff_text.strip():
+            print(result.git_diff_text.rstrip())
     if result.pytest_command:
         print("Test:")
         print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
@@ -157,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--function", required=True)
     add_parser.add_argument("--test", action="store_true")
     add_parser.add_argument("--test-command")
+    add_parser.add_argument("--dry-run", action="store_true")
 
     subparsers.add_parser("diff", help="Show git diff")
 
@@ -173,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "scan":
         return _cmd_scan(args.path, args.format)
     if args.command == "add-docstring":
-        return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command)
+        return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command, args.dry_run)
     if args.command == "diff":
         return _cmd_diff()
     if args.command == "log":

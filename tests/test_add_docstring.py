@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from surepython.cli import main
 from surepython.codemods import add_docstring
 from surepython.datasette_log import read_last_operation
 from surepython.git_tools import GitError
@@ -23,6 +24,17 @@ def write_fixture_file(root: Path, content: str | None = None) -> Path:
     sample = root / "sample.py"
     sample.write_text(content or FIXTURE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     return sample
+
+
+def git_status_short(root: Path) -> str:
+    completed = subprocess.run(
+        ["git", "status", "--short"],
+        cwd=str(root),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
 
 
 def test_add_docstring_inserts_skeleton_for_global_function(tmp_path: Path, monkeypatch) -> None:
@@ -64,6 +76,54 @@ def test_add_docstring_inserts_skeleton_for_class_method(tmp_path: Path, monkeyp
         in updated
     )
     assert 'class OtherClass:\n    def sample_method(self):\n        return "other"\n' in updated
+
+
+def test_add_docstring_dry_run_does_not_modify_file_and_shows_preview(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    original = sample.read_text(encoding="utf-8")
+    init_git_repo(root)
+
+    exit_code = main(
+        [
+            "add-docstring",
+            str(sample),
+            "--function",
+            "SampleClass.sample_method",
+            "--dry-run",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "Dry run; no files changed." in output
+    assert "Preview diff:" in output
+    assert '"""TODO: Document this function."""' in output
+    assert sample.read_text(encoding="utf-8") == original
+    assert git_status_short(root) == ""
+
+
+def test_add_docstring_dry_run_refuses_existing_docstring(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(
+        root,
+        FIXTURE_PATH.read_text(encoding="utf-8").replace(
+            '    def sample_method(self):\n        return "class"\n',
+            '    def sample_method(self):\n        """Existing."""\n        return "class"\n',
+        ),
+    )
+    init_git_repo(root)
+
+    try:
+        add_docstring(sample, "SampleClass.sample_method", project_root=root, dry_run=True)
+    except GitError as exc:
+        assert "docstring" in str(exc).lower()
+    else:
+        raise AssertionError("Expected refusal")
 
 
 def test_add_docstring_refuses_existing_docstring_in_class_method(tmp_path: Path, monkeypatch) -> None:
@@ -130,4 +190,3 @@ def test_add_docstring_refuses_ambiguous_unqualified_method_name(tmp_path: Path,
         assert "ambiguous" in str(exc).lower()
     else:
         raise AssertionError("Expected refusal")
-
