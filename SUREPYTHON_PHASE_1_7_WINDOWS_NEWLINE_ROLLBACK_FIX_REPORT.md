@@ -44,6 +44,24 @@ Dry-run now exercises the same byte reconstruction path as real rollback.
 
 That means dry-run must prove that a byte-exact rollback candidate exists before reporting success.
 
+## Historical Records: Legacy/Unverifiable
+
+A historical record is `legacy/unverifiable` when:
+
+- the current file matches the logged `after_sha256`
+- no reconstructible state matches the logged `before_sha256`
+- reasonable byte candidates for encoding, BOM, LF/CRLF endings, and final newline do not recover that hash
+
+Contract:
+
+- SurePython refuses the rollback
+- SurePython does not modify the file
+- SurePython does not replace the historical hash
+- SurePython does not choose the Git blob as a substitute source of truth
+- the refusal is a successful guardrail, not a failure of the current rollback implementation
+
+These records may come from older experiments, incomplete logs, or inconsistent historical state. They must not be made valid retroactively.
+
 ## Regression Tests Added
 
 - exact rollback of LF files
