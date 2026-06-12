@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -41,6 +42,19 @@ def git_status_short(root: Path) -> str:
 
 def _never_called(_: Path, __: str | None = None) -> tuple[int, str]:
     raise AssertionError("pytest should not run")
+
+
+def read_db_rows(db_path: Path) -> list[tuple]:
+    with sqlite3.connect(str(db_path)) as connection:
+        return connection.execute(
+            """
+            SELECT created_at, project_path, file_path, operation, symbol, before_sha256,
+                   after_sha256, git_diff, pytest_command, pytest_exit_code, pytest_status,
+                   status, message
+            FROM surepython_operations
+            ORDER BY id
+            """
+        ).fetchall()
 
 
 def test_add_docstring_inserts_skeleton_for_global_function(tmp_path: Path, monkeypatch) -> None:
@@ -131,6 +145,125 @@ def test_add_docstring_with_test_runs_pytest_and_reports_success(tmp_path: Path,
     assert result.pytest_exit_code == 0
     assert result.pytest_command == f"{codemods.sys.executable} -m pytest"
     assert '"""TODO: Document this function."""' in sample.read_text(encoding="utf-8")
+
+
+def test_add_docstring_with_db_logs_operation(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    db_path = root / "surepython_lab.db"
+
+    exit_code = main(
+        [
+            "add-docstring",
+            str(sample),
+            "--function",
+            "SampleClass.sample_method",
+            "--db",
+            str(db_path),
+        ]
+    )
+
+    assert exit_code == 0
+    rows = read_db_rows(db_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row[3] == "add-docstring"
+    assert row[4] == "SampleClass.sample_method"
+    assert row[11] == "applied"
+    assert row[6] is not None
+    assert row[7]
+
+
+def test_add_docstring_with_test_and_db_logs_pytest_status(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    db_path = root / "surepython_lab.db"
+    monkeypatch.setattr(codemods, "run_pytest", lambda cwd, command=None: (0, "ok"))
+
+    result = add_docstring(sample, "SampleClass.sample_method", project_root=root, db_path=db_path, run_tests=True)
+
+    rows = read_db_rows(db_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row[8] == f"{codemods.sys.executable} -m pytest"
+    assert row[9] == 0
+    assert row[10] == "passed"
+    assert row[11] == "tested"
+    assert result.pytest_status == "passed"
+
+
+def test_add_docstring_without_db_keeps_previous_behavior(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    db_path = root / "surepython_lab.db"
+
+    result = add_docstring(sample, "SampleClass.sample_method", project_root=root)
+
+    assert result.db_path is None
+    assert not db_path.exists()
+
+
+def test_add_docstring_dry_run_with_db_logs_planned_without_writing_file(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    original = sample.read_text(encoding="utf-8")
+    init_git_repo(root)
+    db_path = root / "surepython_lab.db"
+
+    result = add_docstring(
+        sample,
+        "SampleClass.sample_method",
+        project_root=root,
+        db_path=db_path,
+        dry_run=True,
+    )
+
+    rows = read_db_rows(db_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row[11] == "planned"
+    assert row[7] is not None and "TODO: Document this function." in row[7]
+    assert sample.read_text(encoding="utf-8") == original
+    assert result.status == "planned"
+
+
+def test_add_docstring_refusal_is_logged_when_db_provided(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(
+        root,
+        FIXTURE_PATH.read_text(encoding="utf-8").replace(
+            '    def sample_method(self):\n        return "class"\n',
+            '    def sample_method(self):\n        """Existing."""\n        return "class"\n',
+        ),
+    )
+    init_git_repo(root)
+    db_path = root / "surepython_lab.db"
+
+    try:
+        add_docstring(sample, "SampleClass.sample_method", project_root=root, db_path=db_path)
+    except GitError:
+        pass
+    else:
+        raise AssertionError("Expected refusal")
+
+    rows = read_db_rows(db_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row[11] == "refused"
+    assert "docstring" in (row[12] or "").lower()
 
 
 def test_add_docstring_with_test_propagates_pytest_failure(tmp_path: Path, monkeypatch) -> None:

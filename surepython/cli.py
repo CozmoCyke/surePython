@@ -85,12 +85,14 @@ def _cmd_add_docstring(
     test: bool,
     test_command: str | None,
     dry_run: bool,
+    db: Path | None,
 ) -> int:
     try:
         result = add_docstring(
             file_path,
             function,
             project_root=file_path.parent,
+            db_path=db,
             run_tests=test,
             test_command=test_command,
             dry_run=dry_run,
@@ -127,6 +129,9 @@ def _cmd_add_docstring(
         print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
         if result.pytest_status:
             print(f"  Status: {result.pytest_status}")
+    if result.db_path is not None:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
     print("Next:")
     print("  Run:")
     print("    surepython diff")
@@ -176,6 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--test", action="store_true")
     add_parser.add_argument("--test-command")
     add_parser.add_argument("--dry-run", action="store_true")
+    add_parser.add_argument("--db", type=Path)
 
     subparsers.add_parser("diff", help="Show git diff")
 
@@ -192,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "scan":
         return _cmd_scan(args.path, args.format)
     if args.command == "add-docstring":
-        return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command, args.dry_run)
+        return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command, args.dry_run, args.db)
     if args.command == "diff":
         return _cmd_diff()
     if args.command == "log":

@@ -9,7 +9,12 @@ from pathlib import Path
 
 import libcst as cst
 
-from .datasette_log import OperationRecord, now_utc_iso, write_last_operation
+from .datasette_log import (
+    OperationRecord,
+    insert_record,
+    now_utc_iso,
+    write_last_operation,
+)
 from .git_tools import (
     GitError,
     ensure_clean_git_repo,
@@ -27,6 +32,7 @@ TODO_DOCSTRING = '"""TODO: Document this function."""'
 class AddDocstringResult:
     file_path: Path
     project_root: Path
+    db_path: Path | None
     symbol: str
     before_sha256: str
     after_sha256: str
@@ -117,6 +123,7 @@ def _write_state(
     *,
     project_root: Path,
     file_path: Path,
+    db_path: Path | None,
     operation: str,
     symbol: str | None,
     before_sha256: str | None,
@@ -128,23 +135,24 @@ def _write_state(
     status: str,
     message: str | None,
 ) -> None:
-    write_last_operation(
-        OperationRecord(
-            created_at=now_utc_iso(),
-            project_path=str(project_root),
-            file_path=str(file_path),
-            operation=operation,
-            symbol=symbol,
-            before_sha256=before_sha256,
-            after_sha256=after_sha256,
-            git_diff=git_diff_text,
-            pytest_command=pytest_command,
-            pytest_exit_code=pytest_exit_code,
-            pytest_status=pytest_status,
-            status=status,
-            message=message,
-        )
+    record = OperationRecord(
+        created_at=now_utc_iso(),
+        project_path=str(project_root),
+        file_path=str(file_path),
+        operation=operation,
+        symbol=symbol,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        git_diff=git_diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
     )
+    write_last_operation(record)
+    if db_path is not None:
+        insert_record(db_path, record)
 
 
 class _DocstringInserter(cst.CSTTransformer):
@@ -200,6 +208,7 @@ def add_docstring(
     target: str,
     *,
     project_root: Path | None = None,
+    db_path: Path | None = None,
     run_tests: bool = False,
     test_command: str | None = None,
     dry_run: bool = False,
@@ -224,6 +233,7 @@ def add_docstring(
         _write_state(
             project_root=context.root,
             file_path=file_path,
+            db_path=db_path,
             operation="add-docstring",
             symbol=target_qname,
             before_sha256=before_sha256,
@@ -243,6 +253,7 @@ def add_docstring(
         _write_state(
             project_root=context.root,
             file_path=file_path,
+            db_path=db_path,
             operation="add-docstring",
             symbol=target_qname,
             before_sha256=before_sha256,
@@ -260,6 +271,7 @@ def add_docstring(
         _write_state(
             project_root=context.root,
             file_path=file_path,
+            db_path=db_path,
             operation="add-docstring",
             symbol=target_qname,
             before_sha256=before_sha256,
@@ -280,6 +292,7 @@ def add_docstring(
         _write_state(
             project_root=context.root,
             file_path=file_path,
+            db_path=db_path,
             operation="add-docstring",
             symbol=target_qname,
             before_sha256=before_sha256,
@@ -322,6 +335,7 @@ def add_docstring(
         _write_state(
             project_root=context.root,
             file_path=file_path,
+            db_path=db_path,
             operation="add-docstring",
             symbol=target_qname,
             before_sha256=before_sha256,
@@ -333,10 +347,27 @@ def add_docstring(
             status=status,
             message=message,
         )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
 
     return AddDocstringResult(
         file_path=file_path,
         project_root=context.root,
+        db_path=db_path,
         symbol=target_qname,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
