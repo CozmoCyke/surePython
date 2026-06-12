@@ -125,10 +125,14 @@ def _cmd_add_docstring(
     if result.pytest_command:
         print("Test:")
         print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
     print("Next:")
     print("  Run:")
     print("    surepython diff")
     print("    surepython log --db <path>")
+    if result.pytest_exit_code not in (None, 0):
+        return 1
     return 0
 
 

@@ -47,6 +47,9 @@ Pipeline:
 - Phase 1.0: minimal secure pipeline
 - Phase 1.1: official dependencies, behavioral shims removed
 - Phase 1.2: explicit `Class.method` targeting
+- Phase 1.3: structured scan formats
+- Phase 1.4: dry-run previews
+- Phase 1.5: pytest test integration
 
 ## Examples
 
@@ -57,9 +60,13 @@ python -m surepython scan tests\fixtures --format csv
 python -m surepython add-docstring tests\fixtures\sample_module.py --function sample_function --test
 python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method
 python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run
+python -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --test
 python -m surepython diff
 python -m surepython log --db .\didier_lab.db
 ```
+
+`--test` runs `python -m pytest` after a real edit and reports the result.
+`--dry-run` previews the diff only and does not execute tests.
 
 ## Local Environment Note
 

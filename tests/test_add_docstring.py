@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
+import surepython.codemods as codemods
 from surepython.cli import main
 from surepython.codemods import add_docstring
 from surepython.datasette_log import read_last_operation
@@ -17,7 +19,7 @@ def init_git_repo(root: Path) -> None:
     subprocess.run(["git", "config", "user.email", "surepython@example.com"], cwd=str(root), check=True, capture_output=True, text=True)
     subprocess.run(["git", "config", "user.name", "SurePython"], cwd=str(root), check=True, capture_output=True, text=True)
     subprocess.run(["git", "add", "."], cwd=str(root), check=True, capture_output=True, text=True)
-    subprocess.run(["git", "commit", "-m", "baseline"], cwd=str(root), check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "--allow-empty", "-m", "baseline"], cwd=str(root), check=True, capture_output=True, text=True)
 
 
 def write_fixture_file(root: Path, content: str | None = None) -> Path:
@@ -35,6 +37,10 @@ def git_status_short(root: Path) -> str:
         text=True,
     )
     return completed.stdout.strip()
+
+
+def _never_called(_: Path, __: str | None = None) -> tuple[int, str]:
+    raise AssertionError("pytest should not run")
 
 
 def test_add_docstring_inserts_skeleton_for_global_function(tmp_path: Path, monkeypatch) -> None:
@@ -78,6 +84,87 @@ def test_add_docstring_inserts_skeleton_for_class_method(tmp_path: Path, monkeyp
     assert 'class OtherClass:\n    def sample_method(self):\n        return "other"\n' in updated
 
 
+def test_run_pytest_uses_python_m_pytest(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    init_git_repo(root)
+    calls: list[list[str]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        assert kwargs["cwd"] == str(root)
+        assert kwargs["check"] is False
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        return SimpleNamespace(returncode=0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr(codemods.subprocess, "run", fake_run)
+
+    exit_code, output = codemods.run_pytest(root)
+
+    assert exit_code == 0
+    assert output == "ok"
+    assert calls == [[codemods.sys.executable, "-m", "pytest"]]
+
+
+def test_add_docstring_with_test_runs_pytest_and_reports_success(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    calls: list[Path] = []
+
+    def fake_run_pytest(cwd: Path, command: str | None = None) -> tuple[int, str]:
+        calls.append(cwd)
+        assert command is None
+        return 0, "collected 1 item"
+
+    monkeypatch.setattr(codemods, "run_pytest", fake_run_pytest)
+
+    result = add_docstring(sample, "SampleClass.sample_method", project_root=root, run_tests=True)
+
+    assert calls == [root]
+    assert result.status == "tested"
+    assert result.pytest_status == "passed"
+    assert result.pytest_exit_code == 0
+    assert result.pytest_command == f"{codemods.sys.executable} -m pytest"
+    assert '"""TODO: Document this function."""' in sample.read_text(encoding="utf-8")
+
+
+def test_add_docstring_with_test_propagates_pytest_failure(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+
+    monkeypatch.setattr(codemods, "run_pytest", lambda cwd, command=None: (3, "pytest failed"))
+
+    result = add_docstring(sample, "SampleClass.sample_method", project_root=root, run_tests=True)
+
+    assert result.status == "failed"
+    assert result.pytest_status == "failed"
+    assert result.pytest_exit_code == 3
+    assert result.pytest_command == f"{codemods.sys.executable} -m pytest"
+
+
+def test_add_docstring_without_test_leaves_runner_unused(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    monkeypatch.setattr(codemods, "run_pytest", _never_called)
+
+    result = add_docstring(sample, "SampleClass.sample_method", project_root=root)
+
+    assert result.status == "applied"
+    assert result.pytest_command is None
+    assert result.pytest_exit_code is None
+
+
 def test_add_docstring_dry_run_does_not_modify_file_and_shows_preview(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root = tmp_path / "project"
@@ -85,6 +172,7 @@ def test_add_docstring_dry_run_does_not_modify_file_and_shows_preview(tmp_path: 
     sample = write_fixture_file(root)
     original = sample.read_text(encoding="utf-8")
     init_git_repo(root)
+    monkeypatch.setattr(codemods, "run_pytest", _never_called)
 
     exit_code = main(
         [
@@ -103,6 +191,21 @@ def test_add_docstring_dry_run_does_not_modify_file_and_shows_preview(tmp_path: 
     assert '"""TODO: Document this function."""' in output
     assert sample.read_text(encoding="utf-8") == original
     assert git_status_short(root) == ""
+
+
+def test_add_docstring_dry_run_with_test_does_not_run_pytest(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    monkeypatch.setattr(codemods, "run_pytest", _never_called)
+
+    result = add_docstring(sample, "SampleClass.sample_method", project_root=root, run_tests=True, dry_run=True)
+
+    assert result.status == "planned"
+    assert result.pytest_command is None
+    assert result.pytest_exit_code is None
 
 
 def test_add_docstring_dry_run_refuses_existing_docstring(tmp_path: Path, monkeypatch) -> None:

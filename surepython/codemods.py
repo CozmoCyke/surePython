@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import difflib
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -79,15 +80,24 @@ def _resolve_target(records, target: str) -> str:
     return matches[0].qualified_name
 
 
-def _run_pytest(command: str, cwd: Path) -> tuple[int, str]:
-    completed = subprocess.run(
-        command,
-        cwd=str(cwd),
-        shell=True,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+def run_pytest(cwd: Path, command: str | None = None) -> tuple[int, str]:
+    if command is None:
+        completed = subprocess.run(
+            [sys.executable, "-m", "pytest"],
+            cwd=str(cwd),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    else:
+        completed = subprocess.run(
+            command,
+            cwd=str(cwd),
+            shell=True,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
     output = (completed.stdout or "") + (completed.stderr or "")
     return completed.returncode, output.strip()
 
@@ -300,16 +310,13 @@ def add_docstring(
     status = "planned" if dry_run else "applied"
     message = "Planned skeleton docstring." if dry_run else "Added skeleton docstring."
 
-    if run_tests:
-        pytest_command = test_command or "pytest"
-        pytest_exit_code, pytest_output = _run_pytest(pytest_command, cwd=context.root)
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
         pytest_status = "passed" if pytest_exit_code == 0 else "failed"
         if pytest_output:
             message = f"{message} Pytest output: {pytest_output}"
-        if not dry_run:
-            status = "tested" if pytest_exit_code == 0 else "failed"
-        else:
-            status = "planned"
+        status = "tested" if pytest_exit_code == 0 else "failed"
 
     if not dry_run:
         _write_state(
