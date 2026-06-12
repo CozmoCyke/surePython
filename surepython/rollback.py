@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +41,54 @@ def _preview_diff(file_path: Path, before: str, after: str) -> str:
             tofile=str(file_path),
         )
     ).rstrip("\n")
+
+
+def _decode_python_bytes(data: bytes) -> tuple[str, bytes, str]:
+    if data.startswith(b"\xef\xbb\xbf"):
+        return data[3:].decode("utf-8"), b"\xef\xbb\xbf", "utf-8"
+    return data.decode("utf-8"), b"", "utf-8"
+
+
+def _encode_python_text(text: str, bom: bytes, encoding: str) -> bytes:
+    return bom + text.encode(encoding)
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _newline_variants(text: str) -> list[str]:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    variants = [text, normalized, normalized.replace("\n", "\r\n")]
+    unique: list[str] = []
+    for variant in variants:
+        if variant not in unique:
+            unique.append(variant)
+    return unique
+
+
+def _bom_variants(current_bom: bytes) -> list[bytes]:
+    variants = [current_bom, b"\xef\xbb\xbf" if current_bom == b"" else b""]
+    unique: list[bytes] = []
+    for variant in variants:
+        if variant not in unique:
+            unique.append(variant)
+    return unique
+
+
+def _select_restored_bytes(
+    restored_source: str,
+    *,
+    current_bom: bytes,
+    encoding: str,
+    expected_sha256: str,
+) -> bytes:
+    for text_variant in _newline_variants(restored_source):
+        for bom_variant in _bom_variants(current_bom):
+            candidate = _encode_python_text(text_variant, bom_variant, encoding)
+            if _sha256_bytes(candidate) == expected_sha256:
+                return candidate
+    raise GitError("Rollback result does not match logged before_sha256")
 
 
 class _DocstringRemover(cst.CSTTransformer):
@@ -123,7 +172,8 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     if current_sha != record.after_sha256:
         raise GitError("Current file hash does not match the logged after_sha256")
 
-    source = file_path.read_text(encoding="utf-8")
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
     module = cst.parse_module(source)
     remover = _DocstringRemover(record.symbol or "")
     updated_module = module.visit(remover)
@@ -131,6 +181,13 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
         raise GitError("Rollback target symbol was not modified")
 
     restored_source = updated_module.code
+    restored_bytes = _select_restored_bytes(
+        restored_source,
+        current_bom=bom,
+        encoding=encoding,
+        expected_sha256=record.before_sha256 or "",
+    )
+    candidate_sha = _sha256_bytes(restored_bytes)
     preview_diff_text = _preview_diff(file_path, source, restored_source)
 
     if dry_run:
@@ -138,11 +195,8 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
         status = "planned"
         message = "Planned rollback of add-docstring operation."
     else:
-        file_path.write_text(restored_source, encoding="utf-8")
-        restored_sha = sha256_file(file_path)
-        if restored_sha != record.before_sha256:
-            file_path.write_text(source, encoding="utf-8")
-            raise GitError("Rollback result does not match logged before_sha256")
+        restored_sha = candidate_sha
+        file_path.write_bytes(restored_bytes)
         status = "rolled_back"
         message = "Rolled back add-docstring operation."
         rollback_record = OperationRecord(

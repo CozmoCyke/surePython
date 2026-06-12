@@ -34,6 +34,12 @@ def write_fixture_file(root: Path) -> Path:
     return sample
 
 
+def write_bytes_fixture_file(root: Path, content: bytes) -> Path:
+    sample = root / "sample.py"
+    sample.write_bytes(content)
+    return sample
+
+
 def git_status_short(root: Path) -> str:
     completed = subprocess.run(
         ["git", "status", "--short"],
@@ -69,6 +75,22 @@ def prepare_logged_add_docstring(tmp_path: Path) -> tuple[Path, Path, Path]:
     return root, sample, db_path
 
 
+def prepare_logged_add_docstring_bytes(
+    tmp_path: Path, content: bytes
+) -> tuple[Path, Path, Path, bytes]:
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_bytes_fixture_file(root, content)
+    original = sample.read_bytes()
+    init_git_repo(root)
+    db_path = tmp_path / "surepython_lab.db"
+
+    add_docstring(sample, "SampleClass.sample_method", project_root=root, db_path=db_path)
+    commit_all(root, "apply docstring")
+
+    return root, sample, db_path, original
+
+
 def test_rollback_last_dry_run_shows_diff_without_writing(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root, sample, db_path = prepare_logged_add_docstring(tmp_path)
@@ -99,6 +121,51 @@ def test_rollback_last_applies_single_logged_add_docstring(tmp_path: Path, monke
         ("add-docstring", "applied", "SampleClass.sample_method"),
         ("rollback", "rolled_back", "SampleClass.sample_method"),
     ]
+
+
+def test_rollback_restores_lf_bytes_exactly(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    content = (
+        b"class SampleClass:\n"
+        b"    def sample_method(self):\n"
+        b"        return 'class'\n"
+    )
+    _, sample, db_path, original = prepare_logged_add_docstring_bytes(tmp_path, content)
+
+    result = rollback_last(db_path)
+
+    assert result.status == "rolled_back"
+    assert sample.read_bytes() == original
+
+
+def test_rollback_restores_crlf_bytes_exactly(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    content = (
+        b"class SampleClass:\r\n"
+        b"    def sample_method(self):\r\n"
+        b"        return 'class'\r\n"
+    )
+    _, sample, db_path, original = prepare_logged_add_docstring_bytes(tmp_path, content)
+
+    result = rollback_last(db_path)
+
+    assert result.status == "rolled_back"
+    assert sample.read_bytes() == original
+
+
+def test_rollback_preserves_final_newline(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    content = (
+        b"class SampleClass:\n"
+        b"    def sample_method(self):\n"
+        b"        return 'class'\n"
+    )
+    _, sample, db_path, original = prepare_logged_add_docstring_bytes(tmp_path, content)
+
+    rollback_last(db_path)
+
+    assert sample.read_bytes().endswith(b"\n")
+    assert sample.read_bytes() == original
 
 
 def test_rollback_cli_requires_db(capsys) -> None:
@@ -136,3 +203,44 @@ def test_rollback_refuses_hash_mismatch(tmp_path: Path, monkeypatch) -> None:
         assert "after_sha256" in str(exc)
     else:
         raise AssertionError("Expected hash mismatch refusal")
+
+
+def test_rollback_refuses_when_restored_bytes_do_not_match_before_sha(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, sample, db_path = prepare_logged_add_docstring(tmp_path)
+    before_refusal = sample.read_bytes()
+    with sqlite3.connect(str(db_path)) as connection:
+        connection.execute(
+            "UPDATE surepython_operations SET before_sha256 = ? WHERE operation = ?",
+            ("0" * 64, "add-docstring"),
+        )
+        connection.commit()
+
+    try:
+        rollback_last(db_path)
+    except GitError as exc:
+        assert "before_sha256" in str(exc)
+    else:
+        raise AssertionError("Expected restored hash refusal")
+
+    assert sample.read_bytes() == before_refusal
+    assert git_status_short(root) == ""
+
+
+def test_windows_smoke_add_docstring_commit_then_real_rollback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    content = (
+        b"class SampleClass:\r\n"
+        b"    def sample_method(self):\r\n"
+        b"        return 'class'\r\n"
+    )
+    root, sample, db_path, original = prepare_logged_add_docstring_bytes(tmp_path, content)
+
+    rollback_last(db_path)
+
+    assert sample.read_bytes() == original
+    assert git_status_short(root) != ""
