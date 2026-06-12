@@ -1,5 +1,10 @@
+import csv
+import json
 from pathlib import Path
 
+import pytest
+
+from surepython.cli import main
 from surepython.scanner import scan_file, scan_project
 
 
@@ -24,6 +29,7 @@ def top_level():
     assert [record.type for record in records] == ["class", "method", "function"]
     assert records[0].qualified_name == "Example"
     assert records[1].qualified_name == "Example.method"
+    assert records[1].name == "method"
     assert records[1].has_docstring is True
     assert records[2].qualified_name == "top_level"
 
@@ -49,3 +55,42 @@ def test_scan_fixture_includes_class_method_targets() -> None:
         "OtherClass",
         "OtherClass.sample_method",
     ]
+
+
+def test_scan_cli_text_keeps_default_format(capsys) -> None:
+    exit_code = main(["scan", str(Path(__file__).parent / "fixtures")])
+    assert exit_code == 0
+    output = capsys.readouterr().out.strip().splitlines()
+    assert output[0] == "file\ttype\tname\tqualified_name\tline_start\tline_end\thas_docstring"
+    assert any("SampleClass.sample_method" in line for line in output[1:])
+
+
+def test_scan_cli_explicit_text_format_matches_default(capsys) -> None:
+    exit_code = main(["scan", str(Path(__file__).parent / "fixtures"), "--format", "text"])
+    assert exit_code == 0
+    output = capsys.readouterr().out.strip().splitlines()
+    assert output[0] == "file\ttype\tname\tqualified_name\tline_start\tline_end\thas_docstring"
+
+
+def test_scan_cli_json_is_valid_and_structured(capsys) -> None:
+    exit_code = main(["scan", str(Path(__file__).parent / "fixtures"), "--format", "json"])
+    assert exit_code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert isinstance(data, list)
+    assert data
+    assert {"file", "type", "name", "qualified_name", "line_start", "line_end", "has_docstring"} <= set(data[0])
+
+
+def test_scan_cli_csv_has_header(capsys) -> None:
+    exit_code = main(["scan", str(Path(__file__).parent / "fixtures"), "--format", "csv"])
+    assert exit_code == 0
+    rows = list(csv.reader(capsys.readouterr().out.splitlines()))
+    assert rows[0] == ["file", "type", "name", "qualified_name", "line_start", "line_end", "has_docstring"]
+    assert len(rows) > 1
+
+
+def test_scan_cli_rejects_unknown_format(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main(["scan", str(Path(__file__).parent / "fixtures"), "--format", "xml"])
+    assert excinfo.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err.lower()

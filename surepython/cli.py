@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
+import json
 from pathlib import Path
 import sys
 
@@ -10,26 +13,69 @@ from .git_tools import GitError, find_git_root, git_diff
 from .scanner import scan_project
 
 
+SCAN_FIELDS = [
+    "file",
+    "type",
+    "name",
+    "qualified_name",
+    "line_start",
+    "line_end",
+    "has_docstring",
+]
+
+
 def _print_error(message: str) -> None:
     print(f"Error: {message}", file=sys.stderr)
 
 
-def _cmd_scan(path: Path) -> int:
-    records = scan_project(path)
-    print("file\ttype\tqualified_name\tline_start\tline_end\thas_docstring")
-    for record in records:
-        print(
-            "\t".join(
-                [
-                    record.file,
-                    record.type,
-                    record.qualified_name,
-                    str(record.line_start),
-                    str(record.line_end),
-                    "yes" if record.has_docstring else "no",
-                ]
+def _serialize_scan_records(records, output_format: str) -> str:
+    payload = [
+        {
+            "file": record.file,
+            "type": record.type,
+            "name": record.name,
+            "qualified_name": record.qualified_name,
+            "line_start": record.line_start,
+            "line_end": record.line_end,
+            "has_docstring": record.has_docstring,
+        }
+        for record in records
+    ]
+
+    if output_format == "text":
+        lines = ["\t".join(SCAN_FIELDS)]
+        for item in payload:
+            lines.append(
+                "\t".join(
+                    [
+                        item["file"],
+                        item["type"],
+                        item["name"],
+                        item["qualified_name"],
+                        str(item["line_start"]),
+                        str(item["line_end"]),
+                        "yes" if item["has_docstring"] else "no",
+                    ]
+                )
             )
-        )
+        return "\n".join(lines)
+
+    if output_format == "json":
+        return json.dumps(payload, indent=2, ensure_ascii=False)
+
+    if output_format == "csv":
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=SCAN_FIELDS, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(payload)
+        return buffer.getvalue().rstrip("\r\n")
+
+    raise ValueError(f"Unsupported scan format: {output_format}")
+
+
+def _cmd_scan(path: Path, output_format: str) -> int:
+    records = scan_project(path)
+    print(_serialize_scan_records(records, output_format))
     return 0
 
 
@@ -104,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan_parser = subparsers.add_parser("scan", help="Scan Python symbols")
     scan_parser.add_argument("path", type=Path)
+    scan_parser.add_argument("--format", choices=["text", "json", "csv"], default="text")
 
     add_parser = subparsers.add_parser("add-docstring", help="Add a skeleton docstring")
     add_parser.add_argument("file_path", type=Path)
@@ -124,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "scan":
-        return _cmd_scan(args.path)
+        return _cmd_scan(args.path, args.format)
     if args.command == "add-docstring":
         return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command)
     if args.command == "diff":
@@ -137,4 +184,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
