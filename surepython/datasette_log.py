@@ -28,6 +28,7 @@ class OperationRecord:
     status: str
     message: str | None
     operation_id: int | None = None
+    source_operation_id: int | None = None
 
 
 def now_utc_iso() -> str:
@@ -71,8 +72,36 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             pytest_exit_code INTEGER,
             pytest_status TEXT,
             status TEXT NOT NULL,
-            message TEXT
+            message TEXT,
+            source_operation_id INTEGER
         )
+        """
+    )
+    connection.commit()
+    existing_columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(surepython_operations)").fetchall()
+    }
+    if "source_operation_id" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN source_operation_id INTEGER")
+        connection.commit()
+
+    connection.execute(
+        """
+        UPDATE surepython_operations
+        SET source_operation_id = (
+            SELECT prior.id
+            FROM surepython_operations AS prior
+            WHERE prior.id < surepython_operations.id
+              AND prior.project_path = surepython_operations.project_path
+              AND prior.file_path = surepython_operations.file_path
+              AND prior.symbol = surepython_operations.symbol
+              AND prior.operation != 'rollback'
+              AND prior.status IN ('applied', 'tested', 'failed')
+            ORDER BY prior.id DESC
+            LIMIT 1
+        )
+        WHERE operation = 'rollback' AND source_operation_id IS NULL
         """
     )
     connection.commit()
@@ -97,8 +126,9 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 pytest_exit_code,
                 pytest_status,
                 status,
-                message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                message,
+                source_operation_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -114,6 +144,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.pytest_status,
                 record.status,
                 record.message,
+                record.source_operation_id,
             ),
         )
         connection.commit()
@@ -145,7 +176,8 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 pytest_exit_code,
                 pytest_status,
                 status,
-                message
+                message,
+                source_operation_id
             FROM surepython_operations
             WHERE operation != 'rollback'
               AND status IN ('applied', 'tested', 'failed')
@@ -174,6 +206,7 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         pytest_status=row[11],
         status=row[12],
         message=row[13],
+        source_operation_id=row[14],
     )
 
 
@@ -182,3 +215,116 @@ def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
     if record.operation != "add-docstring":
         raise FileNotFoundError("No applicable add-docstring operation found")
     return record
+
+
+def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                created_at,
+                project_path,
+                file_path,
+                operation,
+                symbol,
+                before_sha256,
+                after_sha256,
+                git_diff,
+                pytest_command,
+                pytest_exit_code,
+                pytest_status,
+                status,
+                message,
+                source_operation_id
+            FROM surepython_operations
+            WHERE id = ?
+            """,
+            (operation_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        raise FileNotFoundError(f"Operation not found: {operation_id}")
+
+    return OperationRecord(
+        operation_id=row[0],
+        created_at=row[1],
+        project_path=row[2],
+        file_path=row[3],
+        operation=row[4],
+        symbol=row[5],
+        before_sha256=row[6],
+        after_sha256=row[7],
+        git_diff=row[8],
+        pytest_command=row[9],
+        pytest_exit_code=row[10],
+        pytest_status=row[11],
+        status=row[12],
+        message=row[13],
+        source_operation_id=row[14],
+    )
+
+
+def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) -> OperationRecord | None:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                created_at,
+                project_path,
+                file_path,
+                operation,
+                symbol,
+                before_sha256,
+                after_sha256,
+                git_diff,
+                pytest_command,
+                pytest_exit_code,
+                pytest_status,
+                status,
+                message,
+                source_operation_id
+            FROM surepython_operations
+            WHERE operation = 'rollback'
+              AND source_operation_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (source_operation_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        return None
+
+    return OperationRecord(
+        operation_id=row[0],
+        created_at=row[1],
+        project_path=row[2],
+        file_path=row[3],
+        operation=row[4],
+        symbol=row[5],
+        before_sha256=row[6],
+        after_sha256=row[7],
+        git_diff=row[8],
+        pytest_command=row[9],
+        pytest_exit_code=row[10],
+        pytest_status=row[11],
+        status=row[12],
+        message=row[13],
+        source_operation_id=row[14],
+    )

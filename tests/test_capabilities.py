@@ -17,6 +17,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "protocol_schema_version",
         "capabilities_schema_version",
         "operations",
+        "commands",
     ]
     assert payload["protocol_schema_version"] == "1.0"
     assert payload["capabilities_schema_version"] == "1.0"
@@ -31,6 +32,11 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     ]
     assert "json" in operations["add-docstring"]["supported_formats"]
     assert "ANNOTATION_INVALID" in operations["add-return-type"]["possible_error_codes"]
+    commands = {command["name"]: command for command in payload["commands"]}
+    assert set(commands) == {"rollback"}
+    assert commands["rollback"]["selectors"] == ["last", "id"]
+    assert commands["rollback"]["mutually_exclusive_selectors"] is True
+    assert "OPERATION_ID_INVALID" in commands["rollback"]["possible_error_codes"]
 
 
 def test_capabilities_text_is_human_readable(capsys) -> None:
@@ -40,6 +46,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     output = capsys.readouterr().out
     assert "add-docstring" in output
     assert "add-return-type" in output
+    assert "rollback" in output
 
 
 def test_capabilities_json_is_deterministic() -> None:

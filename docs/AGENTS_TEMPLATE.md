@@ -66,6 +66,8 @@ python -m surepython rollback --last --db <database.db> --dry-run
 python -m surepython rollback --last --db <database.db> --dry-run --format json
 python -m surepython rollback --last --db <database.db>
 python -m surepython rollback --last --db <database.db> --format json
+python -m surepython rollback --id <operation_id> --db <database.db> --dry-run
+python -m surepython rollback --id <operation_id> --db <database.db>
 python -m surepython diff
 git status --short
 ```
@@ -83,6 +85,8 @@ git status --short
 - Do not broaden `Class.method` into a global function edit.
 - Do not run rollback without `--db`.
 - Do not run real rollback before rollback `--dry-run`.
+- Do not pass `--last` and `--id` together.
+- Do not run `--id` rollback without checking the current project context.
 - Do not edit SQLite hashes to make rollback succeed.
 - Do not treat `legacy/unverifiable` records as rollbackable.
 - Do not force-push or move release tags unless explicitly requested.

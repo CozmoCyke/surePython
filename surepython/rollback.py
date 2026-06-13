@@ -12,6 +12,8 @@ from .datasette_log import (
     OperationRecord,
     insert_record,
     now_utc_iso,
+    read_operation_by_id,
+    read_rollback_for_source_operation,
     read_last_supported_operation,
     write_last_operation,
 )
@@ -25,6 +27,8 @@ class RollbackResult:
     file_path: Path
     symbol: str
     dry_run: bool
+    selector_type: str
+    selector_value: int | str
     before_sha256: str
     after_sha256: str
     preview_diff_text: str
@@ -35,8 +39,12 @@ class RollbackResult:
     rollback_operation_id: int | None
     written: bool
     logged: bool
-    byte_exact: bool
+    bytes_equal: bool
     exit_code: int
+
+    @property
+    def byte_exact(self) -> bool:
+        return self.bytes_equal
 
 
 def _preview_diff(file_path: Path, before: str, after: str) -> str:
@@ -244,24 +252,44 @@ def _require_record_fields(record: OperationRecord) -> None:
         )
 
 
-def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
-    if db_path is None:
-        raise GitError("Rollback requires --db", code="ROLLBACK_NOT_AVAILABLE")
+def _prepare_rollback_record(
+    record: OperationRecord,
+    *,
+    db_path: Path,
+    dry_run: bool,
+    current_root: Path | None,
+    selector_type: str,
+    selector_value: int | str,
+) -> tuple[RollbackResult, bytes | None]:
+    if record.operation == "rollback":
+        raise GitError("Rollback records cannot be rolled back again", code="ROLLBACK_RECORD_NOT_ALLOWED")
 
-    record = read_last_supported_operation(db_path)
     _require_record_fields(record)
+    if record.operation not in {"add-docstring", "add-return-type"}:
+        raise GitError(
+            f"Operation is not rollback-compatible: {record.operation}",
+            code="UNKNOWN_SQLITE_OPERATION",
+        )
 
     file_path = Path(record.file_path).resolve()
     if not file_path.exists():
         raise GitError("Rollback target file does not exist", code="FILE_NOT_FOUND")
 
     project_root = Path(record.project_path).resolve()
-    context = ensure_clean_git_repo(project_root)
+    active_root = (current_root or project_root).resolve()
+    if current_root is not None and active_root != project_root:
+        raise GitError("Operation belongs to a different project", code="PROJECT_MISMATCH")
+
+    context = ensure_clean_git_repo(active_root)
     if not is_within_root(file_path, context.root):
         raise GitError(
             "Rollback target file is outside the authorized project root",
             code="FILE_OUTSIDE_PROJECT",
         )
+
+    source_operation = read_rollback_for_source_operation(db_path, record.operation_id or -1)
+    if source_operation is not None:
+        raise GitError("Operation has already been rolled back", code="ROLLBACK_ALREADY_APPLIED")
 
     current_sha = sha256_file(file_path)
     if current_sha != record.after_sha256:
@@ -273,14 +301,9 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     if record.operation == "add-docstring":
         remover = _DocstringRemover(record.symbol or "")
         operation_label = "add-docstring"
-    elif record.operation == "add-return-type":
+    else:
         remover = _ReturnTypeRemover(record.symbol or "")
         operation_label = "add-return-type"
-    else:  # pragma: no cover - protected by _require_record_fields
-        raise GitError(
-            f"Operation is not rollback-compatible: {record.operation}",
-            code="UNKNOWN_SQLITE_OPERATION",
-        )
     updated_module = module.visit(remover)
     if not remover.matched:
         raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
@@ -295,18 +318,21 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     )
     candidate_sha = _sha256_bytes(restored_bytes)
     preview_diff_text = _preview_diff(file_path, source, restored_source)
-    byte_exact = candidate_sha == record.before_sha256
+    bytes_equal = candidate_sha == record.before_sha256
+    if not bytes_equal:
+        raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE")
 
+    status = "preview" if dry_run else "rolled_back"
+    message = (
+        f"Planned rollback of {operation_label} operation {record.operation_id}."
+        if dry_run
+        else f"Rolled back {operation_label} operation {record.operation_id}."
+    )
     rollback_operation_id: int | None = None
-    if dry_run:
-        restored_sha = current_sha
-        status = "planned"
-        message = f"Planned rollback of {operation_label} operation."
-    else:
-        restored_sha = candidate_sha
+    restored_sha = current_sha if dry_run else candidate_sha
+
+    if not dry_run:
         file_path.write_bytes(restored_bytes)
-        status = "rolled_back"
-        message = f"Rolled back {operation_label} operation."
         rollback_record = OperationRecord(
             operation_id=None,
             created_at=now_utc_iso(),
@@ -322,6 +348,7 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
             pytest_status=None,
             status=status,
             message=message,
+            source_operation_id=record.operation_id,
         )
         write_last_operation(rollback_record)
         rollback_operation_id = insert_record(db_path, rollback_record)
@@ -341,15 +368,18 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
                 pytest_status=rollback_record.pytest_status,
                 status=rollback_record.status,
                 message=rollback_record.message,
+                source_operation_id=rollback_record.source_operation_id,
             )
         )
 
-    return RollbackResult(
+    result = RollbackResult(
         db_path=db_path,
         project_root=context.root,
         file_path=file_path,
         symbol=record.symbol or "",
         dry_run=dry_run,
+        selector_type=selector_type,
+        selector_value=selector_value,
         before_sha256=current_sha,
         after_sha256=restored_sha,
         preview_diff_text=preview_diff_text,
@@ -360,6 +390,57 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
         rollback_operation_id=rollback_operation_id,
         written=not dry_run,
         logged=rollback_operation_id is not None,
-        byte_exact=byte_exact,
+        bytes_equal=bytes_equal,
         exit_code=0,
     )
+    return result, restored_bytes
+
+
+def rollback_by_id(
+    db_path: Path,
+    operation_id: int,
+    *,
+    dry_run: bool = False,
+    current_root: Path | None = None,
+) -> RollbackResult:
+    if operation_id <= 0:
+        raise GitError("Operation id must be positive", code="OPERATION_ID_INVALID")
+    if db_path is None:
+        raise GitError("Rollback requires --db", code="ROLLBACK_NOT_AVAILABLE")
+    if not db_path.exists():
+        raise GitError(f"Database does not exist: {db_path}", code="ROLLBACK_NOT_AVAILABLE")
+
+    try:
+        record = read_operation_by_id(db_path, operation_id)
+    except FileNotFoundError as exc:
+        raise GitError(str(exc), code="OPERATION_NOT_FOUND") from exc
+    result, _ = _prepare_rollback_record(
+        record,
+        db_path=db_path,
+        dry_run=dry_run,
+        current_root=current_root,
+        selector_type="operation_id",
+        selector_value=operation_id,
+    )
+    return result
+
+
+def rollback_last(
+    db_path: Path,
+    *,
+    dry_run: bool = False,
+    current_root: Path | None = None,
+) -> RollbackResult:
+    if db_path is None:
+        raise GitError("Rollback requires --db", code="ROLLBACK_NOT_AVAILABLE")
+
+    record = read_last_supported_operation(db_path)
+    result, _ = _prepare_rollback_record(
+        record,
+        db_path=db_path,
+        dry_run=dry_run,
+        current_root=current_root,
+        selector_type="last",
+        selector_value="last",
+    )
+    return result

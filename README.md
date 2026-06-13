@@ -121,10 +121,12 @@ python -m surepython log --db .\surepython_lab.db
 ```powershell
 python -m surepython rollback --last --db .\surepython_lab.db --dry-run
 python -m surepython rollback --last --db .\surepython_lab.db
+python -m surepython rollback --id 42 --db .\surepython_lab.db
 python -m surepython rollback --last --db .\surepython_lab.db --format json
+python -m surepython rollback --id 42 --db .\surepython_lab.db --format json
 ```
 
-`rollback` is explicit, database-backed, and limited to the latest compatible logged `add-docstring` or `add-return-type` operation.
+`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring` or `add-return-type` operations. It supports either `--last` or `--id <operation_id>`, but never both.
 
 ## Agent Protocol
 
@@ -135,7 +137,7 @@ SurePython phase 2.1 adds a stable JSON protocol for agents.
 - use `capabilities --format json` before selecting an operation
 - expect `operation_id` only for real SQLite writes
 - expect dry-runs to return `operation_id: null`
-- expect refusal codes such as `ANNOTATION_EXISTS`, `HASH_MISMATCH`, and `LEGACY_UNVERIFIABLE`
+- expect refusal codes such as `ANNOTATION_EXISTS`, `HASH_MISMATCH`, `LEGACY_UNVERIFIABLE`, and `OPERATION_NOT_FOUND`
 
 The full schema is documented in [docs/PROTOCOL_JSON.md](docs/PROTOCOL_JSON.md).
 
@@ -184,6 +186,7 @@ Current fields include:
 - `pytest_status`
 - `status`
 - `message`
+- `source_operation_id`
 
 Real operations with `--db` log automatically. Dry-runs and refusals do not create SQLite rows. `surepython log --db` remains a manual replay command for the last local operation state.
 
@@ -198,6 +201,8 @@ status in applied/tested/failed
 current file hash = logged after_sha256
 restored bytes hash = logged before_sha256
 ```
+
+Explicit rollback by operation id follows the same contract, but selects a single record with `--id <operation_id>` instead of the latest compatible record.
 
 For current coherent records, rollback restores LF, CRLF, final newline, and UTF-8 BOM state byte for byte.
 
@@ -216,6 +221,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 1.8: product documentation and agent usage policy
 - Phase 2.0: machine-readable capabilities and second proven operation, `add-return-type`
 - Phase 2.1: agent-safe structured JSON protocol
+- Phase 2.2: explicit rollback by operation id and self-hosting comparison
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 
@@ -224,6 +230,7 @@ The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later 
 - [French tutorial](docs/TUTORIAL_FR.md)
 - [Codex integration policy](docs/CODEX_INTEGRATION.md)
 - [Reusable AGENTS template](docs/AGENTS_TEMPLATE.md)
+- [Self-hosting policy](docs/SELF_HOSTING.md)
 - [JSON protocol](docs/PROTOCOL_JSON.md)
 - [Windows troubleshooting](docs/WINDOWS_TROUBLESHOOTING.md)
 

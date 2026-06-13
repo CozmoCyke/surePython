@@ -17,7 +17,7 @@ from .protocol import (
     dump_json,
     ProtocolError,
 )
-from .rollback import rollback_last
+from .rollback import rollback_by_id, rollback_last
 from .scanner import scan_project
 
 
@@ -57,12 +57,18 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
         target = {"file": result.file_path.name, "symbol": result.symbol}
         payload = {
             "operation": "rollback",
+            "selector": {
+                "type": result.selector_type,
+                "value": result.selector_value,
+            },
             "source_operation": result.source_operation,
             "source_operation_id": result.source_operation_id,
             "operation_id": result.rollback_operation_id,
+            "rollback_operation_id": result.rollback_operation_id,
             "target": target,
             "written": result.written,
             "logged": result.logged,
+            "bytes_equal": result.bytes_equal,
             "byte_exact": result.byte_exact,
             "before_sha256": result.before_sha256,
             "restored_sha256": result.after_sha256,
@@ -360,12 +366,22 @@ def _cmd_log(db: Path) -> int:
     return 0
 
 
-def _cmd_rollback(last: bool, db: Path, dry_run: bool, output_format: str) -> int:
-    if not last:
-        _print_error("Only --last rollback is supported")
-        return 1
+def _cmd_rollback(last: bool, operation_id: int | None, db: Path, dry_run: bool, output_format: str) -> int:
     try:
-        result = rollback_last(db, dry_run=dry_run)
+        if last and operation_id is not None:
+            raise GitError(
+                "Rollback accepts either --last or --id, not both",
+                code="ROLLBACK_SELECTOR_CONFLICT",
+            )
+        if not last and operation_id is None:
+            raise GitError("Rollback requires --last or --id", code="OPERATION_ID_REQUIRED")
+        if operation_id is not None:
+            current_root = find_git_root(Path.cwd())
+            if current_root is None:
+                raise GitError("Not a git repository", code="GIT_NOT_REPOSITORY")
+            result = rollback_by_id(db, operation_id, dry_run=dry_run, current_root=current_root)
+        else:
+            result = rollback_last(db, dry_run=dry_run)
     except FileNotFoundError as exc:
         return _emit_error(
             "rollback",
@@ -392,6 +408,7 @@ def _cmd_rollback(last: bool, db: Path, dry_run: bool, output_format: str) -> in
     print("SurePython v0.1")
     print(f"Project:\n  {result.project_root}")
     print("Operation:\n  rollback")
+    print(f"Selector:\n  {result.selector_type} = {result.selector_value}")
     print(f"Target:\n  {result.file_path.name}::{result.symbol}")
     print("Mode:")
     print("  Dry run; no files changed." if dry_run else "  Applied rollback.")
@@ -440,7 +457,8 @@ def build_parser() -> argparse.ArgumentParser:
     log_parser.add_argument("--db", type=Path, required=True)
 
     rollback_parser = subparsers.add_parser("rollback", help="Rollback a logged operation")
-    rollback_parser.add_argument("--last", action="store_true", required=True)
+    rollback_parser.add_argument("--last", action="store_true")
+    rollback_parser.add_argument("--id", type=int)
     rollback_parser.add_argument("--db", type=Path, required=True)
     rollback_parser.add_argument("--dry-run", action="store_true")
     rollback_parser.add_argument("--format", choices=["text", "json"], default="text")
@@ -483,7 +501,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "log":
             return _cmd_log(args.db)
         if args.command == "rollback":
-            return _cmd_rollback(args.last, args.db, args.dry_run, args.format)
+            return _cmd_rollback(args.last, getattr(args, "id", None), args.db, args.dry_run, args.format)
         parser.error("unknown command")
         return 2
     except ProtocolError as exc:

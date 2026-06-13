@@ -33,6 +33,13 @@ ERROR_CODES = (
     "TESTS_FAILED",
     "DATABASE_ERROR",
     "ROLLBACK_NOT_AVAILABLE",
+    "OPERATION_ID_REQUIRED",
+    "OPERATION_ID_INVALID",
+    "OPERATION_NOT_FOUND",
+    "ROLLBACK_SELECTOR_CONFLICT",
+    "ROLLBACK_ALREADY_APPLIED",
+    "ROLLBACK_RECORD_NOT_ALLOWED",
+    "PROJECT_MISMATCH",
     "INTERNAL_ERROR",
 )
 
@@ -56,6 +63,13 @@ EXIT_CODE_BY_ERROR_CODE = {
     "TESTS_FAILED": EXIT_TESTS_FAILED,
     "DATABASE_ERROR": EXIT_INTERNAL,
     "ROLLBACK_NOT_AVAILABLE": EXIT_REFUSED,
+    "OPERATION_ID_REQUIRED": EXIT_REFUSED,
+    "OPERATION_ID_INVALID": EXIT_REFUSED,
+    "OPERATION_NOT_FOUND": EXIT_REFUSED,
+    "ROLLBACK_SELECTOR_CONFLICT": EXIT_REFUSED,
+    "ROLLBACK_ALREADY_APPLIED": EXIT_REFUSED,
+    "ROLLBACK_RECORD_NOT_ALLOWED": EXIT_REFUSED,
+    "PROJECT_MISMATCH": EXIT_REFUSED,
     "INTERNAL_ERROR": EXIT_INTERNAL,
 }
 
@@ -102,9 +116,15 @@ def build_protocol_response(
     }
 
 
-def build_capabilities_payload(operations: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
+def build_capabilities_payload(
+    operations: list[dict[str, Any]],
+    commands: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    payload = {
         "protocol_schema_version": PROTOCOL_SCHEMA_VERSION,
         "capabilities_schema_version": CAPABILITIES_SCHEMA_VERSION,
         "operations": operations,
     }
+    if commands is not None:
+        payload["commands"] = commands
+    return payload

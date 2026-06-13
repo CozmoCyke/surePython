@@ -202,6 +202,8 @@ Le rollback est explicite et exige une base SQLite :
 ```powershell
 .\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db --dry-run
 .\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db --dry-run --format json
+.\.venv\Scripts\python.exe -m surepython rollback --id 42 --db .\surepython_lab.db --dry-run
+.\.venv\Scripts\python.exe -m surepython rollback --id 42 --db .\surepython_lab.db --dry-run --format json
 ```
 
 SurePython vérifie notamment :
@@ -222,6 +224,8 @@ Seulement si le dry-run est correct :
 ```powershell
 .\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db
 .\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db --format json
+.\.venv\Scripts\python.exe -m surepython rollback --id 42 --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython rollback --id 42 --db .\surepython_lab.db --format json
 ```
 
 Le rollback réel :
@@ -229,6 +233,7 @@ Le rollback réel :
 - restaure uniquement l'opération compatible journalisée (`add-docstring` ou `add-return-type`)
 - écrit les octets restaurés seulement après validation du hash
 - journalise une opération `rollback` avec statut `rolled_back`
+- le sélecteur explicite `--id` ne peut être utilisé qu'à la place de `--last`
 
 Vérifier ensuite :
 

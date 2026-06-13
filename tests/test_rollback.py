@@ -12,7 +12,7 @@ from surepython.cli import main
 from surepython.codemods import add_docstring
 from surepython.datasette_log import OperationRecord, insert_record, now_utc_iso
 from surepython.git_tools import GitError
-from surepython.rollback import rollback_last
+from surepython.rollback import rollback_by_id, rollback_last
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "sample_module.py"
@@ -54,6 +54,84 @@ def git_status_short(root: Path) -> str:
     return completed.stdout.strip()
 
 
+def create_legacy_operations_table(db_path: Path) -> None:
+    with sqlite3.connect(str(db_path)) as connection:
+        connection.execute(
+            """
+            CREATE TABLE surepython_operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                project_path TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                symbol TEXT,
+                before_sha256 TEXT,
+                after_sha256 TEXT,
+                git_diff TEXT,
+                pytest_command TEXT,
+                pytest_exit_code INTEGER,
+                pytest_status TEXT,
+                status TEXT NOT NULL,
+                message TEXT
+            )
+            """
+        )
+        connection.commit()
+
+
+def insert_legacy_operation(
+    db_path: Path,
+    *,
+    created_at: str,
+    project_path: str,
+    file_path: str,
+    operation: str,
+    symbol: str,
+    before_sha256: str,
+    after_sha256: str,
+    git_diff: str,
+    status: str,
+    message: str,
+) -> int:
+    with sqlite3.connect(str(db_path)) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO surepython_operations (
+                created_at,
+                project_path,
+                file_path,
+                operation,
+                symbol,
+                before_sha256,
+                after_sha256,
+                git_diff,
+                pytest_command,
+                pytest_exit_code,
+                pytest_status,
+                status,
+                message
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                created_at,
+                project_path,
+                file_path,
+                operation,
+                symbol,
+                before_sha256,
+                after_sha256,
+                git_diff,
+                None,
+                None,
+                None,
+                status,
+                message,
+            ),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
 def read_operations(db_path: Path) -> list[tuple[str, str, str | None]]:
     with sqlite3.connect(str(db_path)) as connection:
         return connection.execute(
@@ -63,6 +141,13 @@ def read_operations(db_path: Path) -> list[tuple[str, str, str | None]]:
             ORDER BY id
             """
         ).fetchall()
+
+
+def latest_operation_id(db_path: Path) -> int:
+    with sqlite3.connect(str(db_path)) as connection:
+        row = connection.execute("SELECT id FROM surepython_operations ORDER BY id DESC LIMIT 1").fetchone()
+    assert row is not None
+    return int(row[0])
 
 
 def prepare_logged_add_docstring(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -179,6 +264,20 @@ def test_rollback_cli_requires_db(capsys) -> None:
     assert "--db" in capsys.readouterr().err
 
 
+def test_rollback_cli_requires_exactly_one_selector(capsys) -> None:
+    exit_code = main(["rollback", "--db", "x.db"])
+
+    assert exit_code == 2
+    assert "rollback requires --last or --id" in capsys.readouterr().err.lower()
+
+
+def test_rollback_cli_rejects_selector_conflict(capsys) -> None:
+    exit_code = main(["rollback", "--last", "--id", "1", "--db", "x.db"])
+
+    assert exit_code == 2
+    assert "either --last or --id, not both" in capsys.readouterr().err.lower()
+
+
 def test_rollback_refuses_dirty_git_status(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root, sample, db_path = prepare_logged_add_docstring(tmp_path)
@@ -230,6 +329,170 @@ def test_rollback_refuses_when_restored_bytes_do_not_match_before_sha(
 
     assert sample.read_bytes() == before_refusal
     assert git_status_short(root) == ""
+
+
+def test_rollback_by_id_dry_run_shows_diff_without_writing(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, sample, db_path = prepare_logged_add_docstring(tmp_path)
+    operation_id = latest_operation_id(db_path)
+    before = sample.read_text(encoding="utf-8")
+    monkeypatch.chdir(root)
+
+    exit_code = main(["rollback", "--id", str(operation_id), "--db", str(db_path), "--dry-run", "--format", "json"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["status"] == "preview"
+    assert payload["result"]["selector"] == {"type": "operation_id", "value": operation_id}
+    assert payload["result"]["source_operation_id"] == operation_id
+    assert payload["result"]["bytes_equal"] is True
+    assert sample.read_text(encoding="utf-8") == before
+    assert git_status_short(root) == ""
+
+
+def test_rollback_by_id_applies_and_logs_source_operation_id(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, sample, db_path = prepare_logged_add_docstring(tmp_path)
+    operation_id = latest_operation_id(db_path)
+    monkeypatch.chdir(root)
+
+    result = rollback_by_id(db_path, operation_id, current_root=root)
+
+    assert result.status == "rolled_back"
+    assert result.selector_type == "operation_id"
+    assert result.selector_value == operation_id
+    assert result.source_operation_id == operation_id
+    assert result.bytes_equal is True
+    assert result.byte_exact is True
+    assert '"""TODO: Document this function."""' not in sample.read_text(encoding="utf-8")
+    assert read_operations(db_path) == [
+        ("add-docstring", "applied", "SampleClass.sample_method"),
+        ("rollback", "rolled_back", "SampleClass.sample_method"),
+    ]
+
+
+def test_rollback_by_id_refuses_invalid_ids(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, _, db_path = prepare_logged_add_docstring(tmp_path)
+    monkeypatch.chdir(root)
+
+    with pytest.raises(GitError, match="positive"):
+        rollback_by_id(db_path, 0, current_root=root)
+    with pytest.raises(GitError, match="positive"):
+        rollback_by_id(db_path, -1, current_root=root)
+    with pytest.raises(GitError, match="Operation not found"):
+        rollback_by_id(db_path, 999, current_root=root)
+
+
+def test_rollback_by_id_refuses_project_mismatch(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, _, db_path = prepare_logged_add_docstring(tmp_path)
+    other_root = tmp_path / "other"
+    other_root.mkdir()
+    init_git_repo(other_root)
+    operation_id = latest_operation_id(db_path)
+
+    with pytest.raises(GitError, match="different project"):
+        rollback_by_id(db_path, operation_id, current_root=other_root)
+
+
+def test_rollback_by_id_refuses_unknown_operation_type(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    db_path = tmp_path / "surepython.db"
+
+    current_sha = hashlib.sha256(sample.read_bytes()).hexdigest()
+    insert_record(
+        db_path,
+        OperationRecord(
+            created_at=now_utc_iso(),
+            project_path=str(root),
+            file_path=str(sample),
+            operation="unknown-operation",
+            symbol="SampleClass.sample_method",
+            before_sha256=current_sha,
+            after_sha256=current_sha,
+            git_diff="",
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="applied",
+            message="unknown",
+        ),
+    )
+
+    with pytest.raises(GitError, match="not rollback-compatible"):
+        rollback_by_id(db_path, 1, current_root=root)
+
+
+def test_rollback_by_id_refuses_double_rollback(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, _, db_path = prepare_logged_add_docstring(tmp_path)
+    operation_id = latest_operation_id(db_path)
+
+    rollback_by_id(db_path, operation_id, current_root=root)
+    commit_all(root, "apply rollback")
+
+    with pytest.raises(GitError, match="already been rolled back"):
+        rollback_by_id(db_path, operation_id, current_root=root)
+
+
+def test_rollback_by_id_refuses_rollback_record_as_source(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, _, db_path = prepare_logged_add_docstring(tmp_path)
+    operation_id = latest_operation_id(db_path)
+
+    rollback_result = rollback_by_id(db_path, operation_id, current_root=root)
+    rollback_id = rollback_result.rollback_operation_id
+    assert rollback_id is not None
+    commit_all(root, "apply rollback")
+
+    with pytest.raises(GitError, match="cannot be rolled back again"):
+        rollback_by_id(db_path, rollback_id, current_root=root)
+
+
+def test_rollback_last_works_with_legacy_schema_without_source_operation_id(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    db_path = tmp_path / "legacy.db"
+    original = sample.read_text(encoding="utf-8")
+    before_sha = hashlib.sha256(sample.read_bytes()).hexdigest()
+
+    add_docstring(sample, "SampleClass.sample_method", project_root=root)
+    after_sha = hashlib.sha256(sample.read_bytes()).hexdigest()
+    create_legacy_operations_table(db_path)
+    operation_id = insert_legacy_operation(
+        db_path,
+        created_at=now_utc_iso(),
+        project_path=str(root),
+        file_path=str(sample),
+        operation="add-docstring",
+        symbol="SampleClass.sample_method",
+        before_sha256=before_sha,
+        after_sha256=after_sha,
+        git_diff="legacy diff",
+        status="applied",
+        message="legacy record",
+    )
+    commit_all(root, "apply legacy docstring")
+
+    result = rollback_last(db_path)
+
+    assert result.source_operation_id == operation_id
+    assert sample.read_text(encoding="utf-8") == original
 
 
 def test_windows_smoke_add_docstring_commit_then_real_rollback(

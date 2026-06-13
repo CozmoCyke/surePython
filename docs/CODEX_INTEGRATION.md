@@ -72,9 +72,13 @@ python -m surepython rollback --last --db <database.db> --dry-run
 python -m surepython rollback --last --db <database.db> --dry-run --format json
 python -m surepython rollback --last --db <database.db>
 python -m surepython rollback --last --db <database.db> --format json
+python -m surepython rollback --id <operation_id> --db <database.db> --dry-run
+python -m surepython rollback --id <operation_id> --db <database.db>
 ```
 
 Rollback must remain explicit. Codex should not turn a pytest failure into an automatic rollback unless a future SurePython phase implements and documents that behavior.
+
+When using `--id`, Codex should confirm that the selected operation belongs to the current project and should treat `OPERATION_NOT_FOUND`, `ROLLBACK_ALREADY_APPLIED`, `ROLLBACK_RECORD_NOT_ALLOWED`, and `PROJECT_MISMATCH` as hard refusals.
 
 ## Agent Safety Rules
 
@@ -88,6 +92,7 @@ When using SurePython, an agent must:
 - pass `--db` when an audit trail is expected
 - treat refusal as a valid outcome
 - parse the JSON protocol when `--format json` is requested
+- distinguish `--last` from `--id` and never pass both at once
 - never bypass hash checks
 - never edit SQLite records to make rollback succeed
 - never move the public preview tag unless explicitly requested
@@ -146,6 +151,7 @@ Codex must not infer that SurePython can:
 - roll back by reading Git history alone
 - repair historical SQLite records
 - guarantee rollback for records created by older or inconsistent experiments
+- use `--id` without confirming the current project context
 
 ## Current Product Boundary
 
@@ -157,7 +163,7 @@ preview one supported edit
 apply one supported edit
 run pytest
 log to SQLite
-rollback one compatible logged edit
+rollback one compatible logged edit by `--last` or explicit `--id`
 return stable JSON for supported commands when requested
 ```
 

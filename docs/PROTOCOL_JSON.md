@@ -73,6 +73,13 @@ Common codes include:
 - `TESTS_FAILED`
 - `DATABASE_ERROR`
 - `ROLLBACK_NOT_AVAILABLE`
+- `OPERATION_ID_REQUIRED`
+- `OPERATION_ID_INVALID`
+- `OPERATION_NOT_FOUND`
+- `ROLLBACK_SELECTOR_CONFLICT`
+- `ROLLBACK_ALREADY_APPLIED`
+- `ROLLBACK_RECORD_NOT_ALLOWED`
+- `PROJECT_MISMATCH`
 - `INTERNAL_ERROR`
 
 ## Exit Codes
@@ -93,7 +100,8 @@ SurePython keeps system exit codes separate from JSON:
 {
   "protocol_schema_version": "1.0",
   "capabilities_schema_version": "1.0",
-  "operations": []
+  "operations": [],
+  "commands": []
 }
 ```
 
@@ -112,11 +120,24 @@ Each operation declares:
 - `supported_formats`
 - `possible_error_codes`
 
+Each command declares:
+
+- `name`
+- `description`
+- `required_arguments`
+- `optional_arguments`
+- `selectors`
+- `mutually_exclusive_selectors`
+- `supported_formats`
+- `possible_error_codes`
+- `status`
+
 ## Logging And Rollback
 
 - Real operations with `--db` expose an `operation_id`
 - Dry-runs return `operation_id: null`
 - Rollback responses expose both the source operation and the rollback log id
+- Rollback responses also expose a `selector` object with `type` and `value`
 - `legacy/unverifiable` records are refused without writing
 
 ## Text Compatibility

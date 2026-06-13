@@ -21,6 +21,19 @@ class OperationCapability:
     status: str
 
 
+@dataclass(frozen=True)
+class CommandCapability:
+    name: str
+    description: str
+    required_arguments: list[str]
+    optional_arguments: list[str]
+    selectors: list[str]
+    mutually_exclusive_selectors: bool
+    supported_formats: list[str]
+    possible_error_codes: list[str]
+    status: str
+
+
 OPERATIONS = [
     OperationCapability(
         name="add-docstring",
@@ -86,8 +99,41 @@ OPERATIONS = [
 ]
 
 
+COMMANDS = [
+    CommandCapability(
+        name="rollback",
+        description="Rollback one previously logged operation by --last or by explicit operation id.",
+        required_arguments=["db"],
+        optional_arguments=["last", "id", "dry-run", "format"],
+        selectors=["last", "id"],
+        mutually_exclusive_selectors=True,
+        supported_formats=["text", "json"],
+        possible_error_codes=[
+            "OPERATION_ID_REQUIRED",
+            "OPERATION_ID_INVALID",
+            "OPERATION_NOT_FOUND",
+            "ROLLBACK_SELECTOR_CONFLICT",
+            "ROLLBACK_ALREADY_APPLIED",
+            "ROLLBACK_RECORD_NOT_ALLOWED",
+            "PROJECT_MISMATCH",
+            "GIT_DIRTY",
+            "UNKNOWN_SQLITE_OPERATION",
+            "HASH_MISMATCH",
+            "LEGACY_UNVERIFIABLE",
+            "ROLLBACK_NOT_AVAILABLE",
+            "DATABASE_ERROR",
+            "INTERNAL_ERROR",
+        ],
+        status="stable",
+    ),
+]
+
+
 def capabilities_payload() -> dict[str, object]:
-    return build_capabilities_payload([asdict(operation) for operation in OPERATIONS])
+    return build_capabilities_payload(
+        [asdict(operation) for operation in OPERATIONS],
+        [asdict(command) for command in COMMANDS],
+    )
 
 
 def serialize_capabilities(output_format: str) -> str:
@@ -98,5 +144,8 @@ def serialize_capabilities(output_format: str) -> str:
         lines = ["operations"]
         for operation in OPERATIONS:
             lines.append(f"- {operation.name}: {operation.description}")
+        lines.append("commands")
+        for command in COMMANDS:
+            lines.append(f"- {command.name}: {command.description}")
         return "\n".join(lines)
     raise ValueError(f"Unsupported capabilities format: {output_format}")

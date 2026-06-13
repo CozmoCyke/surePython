@@ -112,6 +112,16 @@ Contract:
 
 This is a successful guardrail. It prevents SurePython from pretending to restore an operation it cannot prove.
 
+## Rollback By ID And Project Mismatch
+
+If `rollback --id <operation_id>` refuses with a project mismatch, the selected operation belongs to a different logged project than the current Git root. This is a safety check, not a Windows bug.
+
+Use the repository root that matches the logged project, and confirm the operation id with:
+
+```powershell
+python -m surepython rollback --id <operation_id> --db <database.db> --dry-run --format json
+```
+
 ## Clean Git Requirement
 
 Most SurePython write paths require a clean worktree.
