@@ -112,6 +112,12 @@ python -m surepython diff
 
 Markdown local links should also be checked before review.
 
+On Windows workspaces with temporary-directory ACL issues, run pytest with a fresh basetemp under `.tmp`:
+
+```powershell
+python -m pytest --basetemp .\.tmp\pytest_phase_validation
+```
+
 ## Before The Next Public Preview
 
 Do not create a new tag until:

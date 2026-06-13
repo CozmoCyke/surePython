@@ -63,6 +63,12 @@ $env:TMP = "$PWD\.tmp"
 
 If this fixes the run, the issue is local ACL state.
 
+If a previously created `.pytest_tmp` directory remains ACL-locked, do not treat that as a SurePython test failure. Prefer a fresh subdirectory under `.tmp`, for example:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest --basetemp .\.tmp\pytest_phase_validation
+```
+
 ## `.vendor3` And `sitecustomize.py`
 
 Earlier phases removed root-level behavioral shims such as local fake `libcst.py` or `pytest.py`.

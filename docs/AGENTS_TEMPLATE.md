@@ -27,7 +27,7 @@ Before a SurePython modification:
 python -m surepython scan <path> --format json
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run
 git status --short
-````
+```
 
 For a real operation:
 
@@ -88,4 +88,4 @@ git status --short
 SurePython is not a general Python development engine.
 
 It is a narrow, auditable execution tool for supported micro-changes.
-```
+````

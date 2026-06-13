@@ -38,7 +38,10 @@ Puis vérifier :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython --help
-.\.venv\Scripts\python.exe -m pytest
+New-Item -ItemType Directory -Force .\.tmp
+$env:TEMP = "$PWD\.tmp"
+$env:TMP = "$PWD\.tmp"
+.\.venv\Scripts\python.exe -m pytest --basetemp .\.tmp\pytest_tutorial
 ```
 
 Si la `.venv` locale est cassée ou pointe vers un interpréteur supprimé, voir [dépannage Windows](WINDOWS_TROUBLESHOOTING.md).
@@ -193,7 +196,10 @@ git status --short
 Avant revue ou tag :
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+New-Item -ItemType Directory -Force .\.tmp
+$env:TEMP = "$PWD\.tmp"
+$env:TMP = "$PWD\.tmp"
+.\.venv\Scripts\python.exe -m pytest --basetemp .\.tmp\pytest_tutorial
 .\.venv\Scripts\python.exe -m surepython scan tests\fixtures --format json
 .\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run
 .\.venv\Scripts\python.exe -m surepython diff
