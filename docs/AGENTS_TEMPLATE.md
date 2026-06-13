@@ -20,6 +20,10 @@ Current supported rollback:
 
 - rollback the latest compatible SQLite-logged `add-docstring` or `add-return-type` operation
 
+Current machine-readable protocol:
+
+- request `--format json` when the agent needs a stable response envelope
+
 ## Mandatory Workflow
 
 Before a SurePython modification:
@@ -34,19 +38,23 @@ For a docstring dry-run:
 
 ```powershell
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run
+python -m surepython add-docstring <file.py> --function <symbol> --dry-run --format json
 ```
 
 For a return annotation dry-run:
 
 ```powershell
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run --format json
 ```
 
 For a real operation:
 
 ```powershell
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db>
+python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db> --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -55,7 +63,9 @@ For rollback:
 
 ```powershell
 python -m surepython rollback --last --db <database.db> --dry-run
+python -m surepython rollback --last --db <database.db> --dry-run --format json
 python -m surepython rollback --last --db <database.db>
+python -m surepython rollback --last --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -76,6 +86,7 @@ git status --short
 - Do not edit SQLite hashes to make rollback succeed.
 - Do not treat `legacy/unverifiable` records as rollbackable.
 - Do not force-push or move release tags unless explicitly requested.
+- Do not ignore `protocol_schema_version` or `error.code` in JSON mode.
 
 ## Refusals
 

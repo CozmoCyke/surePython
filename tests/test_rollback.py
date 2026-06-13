@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sqlite3
 import hashlib
@@ -276,5 +277,46 @@ def test_rollback_refuses_unknown_operation_type(tmp_path: Path, monkeypatch) ->
 
     with pytest.raises(GitError, match="not rollback-compatible"):
         rollback_last(db_path)
+    assert sample.read_text(encoding="utf-8") == before
+    assert git_status_short(root) == ""
+
+
+def test_rollback_json_refuses_unknown_operation_type(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = write_fixture_file(root)
+    init_git_repo(root)
+    db_path = tmp_path / "surepython_lab.db"
+
+    before = sample.read_text(encoding="utf-8")
+    current_sha = hashlib.sha256(sample.read_bytes()).hexdigest()
+    insert_record(
+        db_path,
+        OperationRecord(
+            created_at=now_utc_iso(),
+            project_path=str(root),
+            file_path=str(sample),
+            operation="unknown-operation",
+            symbol="SampleClass.sample_method",
+            before_sha256=current_sha,
+            after_sha256=current_sha,
+            git_diff="",
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="applied",
+            message="unknown",
+        ),
+    )
+
+    exit_code = main(["rollback", "--last", "--db", str(db_path), "--dry-run", "--format", "json"])
+
+    assert exit_code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["status"] == "refused"
+    assert payload["error"]["code"] == "UNKNOWN_SQLITE_OPERATION"
+    assert payload["result"] is None
     assert sample.read_text(encoding="utf-8") == before
     assert git_status_short(root) == ""

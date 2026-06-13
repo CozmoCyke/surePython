@@ -228,7 +228,7 @@ def test_add_return_type_logs_sqlite_record(tmp_path: Path, monkeypatch) -> None
     init_git_repo(root)
     db_path = tmp_path / "surepython.db"
 
-    add_return_type(sample, "load_user", "str | None", project_root=root, db_path=db_path)
+    result = add_return_type(sample, "load_user", "str | None", project_root=root, db_path=db_path)
 
     row = read_rows(db_path)[0]
     assert row[0] == "add-return-type"
@@ -236,6 +236,8 @@ def test_add_return_type_logs_sqlite_record(tmp_path: Path, monkeypatch) -> None
     assert row[2] == "load_user"
     assert row[3]
     assert row[4]
+    assert result.operation_id is not None
+    assert result.logged is True
 
 
 def test_add_return_type_rollback_restores_lf_bytes(tmp_path: Path, monkeypatch) -> None:
@@ -343,6 +345,7 @@ def test_add_return_type_cli_logs_and_runs_tests(tmp_path: Path, monkeypatch) ->
     assert row[0] == "add-return-type"
     assert row[1] == "tested"
     assert row[5] == "passed"
+    assert row[2] == "load_user"
 
 
 def test_add_docstring_still_works_after_phase_2_changes(tmp_path: Path, monkeypatch) -> None:

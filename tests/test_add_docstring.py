@@ -71,6 +71,8 @@ def test_add_docstring_inserts_skeleton_for_global_function(tmp_path: Path, monk
     assert result.symbol == "run_audit"
     assert result.status == "applied"
     assert "1 file changed" in result.git_stat or result.git_stat.strip() != ""
+    assert result.logged is False
+    assert result.operation_id is None
 
     record = read_last_operation()
     assert record.operation == "add-docstring"
@@ -175,6 +177,7 @@ def test_add_docstring_with_db_logs_operation(tmp_path: Path, monkeypatch) -> No
     assert row[11] == "applied"
     assert row[6] is not None
     assert row[7]
+    assert read_last_operation().operation_id is not None
 
 
 def test_add_docstring_with_test_and_db_logs_pytest_status(tmp_path: Path, monkeypatch) -> None:
@@ -196,6 +199,8 @@ def test_add_docstring_with_test_and_db_logs_pytest_status(tmp_path: Path, monke
     assert row[10] == "passed"
     assert row[11] == "tested"
     assert result.pytest_status == "passed"
+    assert result.operation_id is not None
+    assert result.logged is True
 
 
 def test_add_docstring_without_db_keeps_previous_behavior(tmp_path: Path, monkeypatch) -> None:
@@ -212,7 +217,7 @@ def test_add_docstring_without_db_keeps_previous_behavior(tmp_path: Path, monkey
     assert not db_path.exists()
 
 
-def test_add_docstring_dry_run_with_db_logs_planned_without_writing_file(tmp_path: Path, monkeypatch) -> None:
+def test_add_docstring_dry_run_with_db_does_not_log_to_sqlite_or_write_file(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root = tmp_path / "project"
     root.mkdir()
@@ -229,16 +234,14 @@ def test_add_docstring_dry_run_with_db_logs_planned_without_writing_file(tmp_pat
         dry_run=True,
     )
 
-    rows = read_db_rows(db_path)
-    assert len(rows) == 1
-    row = rows[0]
-    assert row[11] == "planned"
-    assert row[7] is not None and "TODO: Document this function." in row[7]
+    assert not db_path.exists()
     assert sample.read_text(encoding="utf-8") == original
     assert result.status == "planned"
+    assert result.logged is False
+    assert result.operation_id is None
 
 
-def test_add_docstring_refusal_is_logged_when_db_provided(tmp_path: Path, monkeypatch) -> None:
+def test_add_docstring_refusal_keeps_sqlite_empty_when_db_provided(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root = tmp_path / "project"
     root.mkdir()
@@ -259,11 +262,8 @@ def test_add_docstring_refusal_is_logged_when_db_provided(tmp_path: Path, monkey
     else:
         raise AssertionError("Expected refusal")
 
-    rows = read_db_rows(db_path)
-    assert len(rows) == 1
-    row = rows[0]
-    assert row[11] == "refused"
-    assert "docstring" in (row[12] or "").lower()
+    assert not db_path.exists()
+    assert "docstring" in str(read_last_operation().message or "").lower()
 
 
 def test_add_docstring_with_test_propagates_pytest_failure(tmp_path: Path, monkeypatch) -> None:

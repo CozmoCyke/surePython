@@ -5,9 +5,12 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .protocol import ProtocolError
 
-class GitError(RuntimeError):
-    pass
+
+class GitError(ProtocolError):
+    def __init__(self, message: str, *, code: str = "INTERNAL_ERROR", details: dict | None = None) -> None:
+        super().__init__(message, code=code, details=details)
 
 
 @dataclass(frozen=True)
@@ -44,14 +47,14 @@ def is_clean_repo(root: Path) -> bool:
 def ensure_git_context(path: Path) -> GitContext:
     root = find_git_root(path)
     if root is None:
-        raise GitError("Not a git repository")
+        raise GitError("Not a git repository", code="GIT_NOT_REPOSITORY")
     return GitContext(root=root)
 
 
 def ensure_clean_git_repo(path: Path) -> GitContext:
     context = ensure_git_context(path)
     if not is_clean_repo(context.root):
-        raise GitError("Git status is not clean")
+        raise GitError("Git status is not clean", code="GIT_DIRTY")
     return context
 
 
@@ -77,4 +80,3 @@ def git_diff(root: Path) -> tuple[str, str]:
     stat = run_git(["diff", "--stat"], cwd=root)
     diff = run_git(["diff"], cwd=root)
     return stat, diff
-

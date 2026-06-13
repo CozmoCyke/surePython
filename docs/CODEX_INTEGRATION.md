@@ -30,7 +30,8 @@ SurePython may:
 - add one explicit return annotation to one function or method
 - run pytest after a real edit
 - record the operation in SQLite
-- roll back one compatible logged `add-docstring` operation
+- roll back one compatible logged `add-docstring` or `add-return-type` operation
+- emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
 
@@ -42,7 +43,9 @@ For a supported docstring operation, Codex should prefer:
 python -m surepython capabilities --format json
 python -m surepython scan <project-or-folder> --format json
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run
+python -m surepython add-docstring <file.py> --function <symbol> --dry-run --format json
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db>
+python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -53,7 +56,9 @@ For a supported return annotation operation:
 python -m surepython capabilities --format json
 python -m surepython scan <project-or-folder> --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -64,7 +69,9 @@ For rollback:
 
 ```powershell
 python -m surepython rollback --last --db <database.db> --dry-run
+python -m surepython rollback --last --db <database.db> --dry-run --format json
 python -m surepython rollback --last --db <database.db>
+python -m surepython rollback --last --db <database.db> --format json
 ```
 
 Rollback must remain explicit. Codex should not turn a pytest failure into an automatic rollback unless a future SurePython phase implements and documents that behavior.
@@ -80,6 +87,7 @@ When using SurePython, an agent must:
 - keep one operation to one file and one symbol
 - pass `--db` when an audit trail is expected
 - treat refusal as a valid outcome
+- parse the JSON protocol when `--format json` is requested
 - never bypass hash checks
 - never edit SQLite records to make rollback succeed
 - never move the public preview tag unless explicitly requested
@@ -150,6 +158,7 @@ apply one supported edit
 run pytest
 log to SQLite
 rollback one compatible logged edit
+return stable JSON for supported commands when requested
 ```
 
 The smallness is the design. It is the quarantine chamber between an AI proposal and real Python code.

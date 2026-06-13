@@ -11,6 +11,12 @@ from .capabilities import serialize_capabilities
 from .codemods import add_docstring, add_return_type
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
+from .protocol import (
+    EXIT_INTERNAL,
+    build_protocol_response,
+    dump_json,
+    ProtocolError,
+)
 from .rollback import rollback_last
 from .scanner import scan_project
 
@@ -28,6 +34,83 @@ SCAN_FIELDS = [
 
 def _print_error(message: str) -> None:
     print(f"Error: {message}", file=sys.stderr)
+
+
+def _error_status_for_code(code: str) -> str:
+    if code == "TESTS_FAILED":
+        return "failed"
+    if code in {"DATABASE_ERROR", "INTERNAL_ERROR"}:
+        return "failed"
+    return "refused"
+
+
+def _print_json_response(payload: dict[str, object]) -> None:
+    print(dump_json(payload))
+
+
+def _build_error_payload(exc: ProtocolError) -> dict[str, object]:
+    return exc.to_payload()
+
+
+def _build_operation_result_payload(command: str, result, output_format: str, dry_run: bool) -> dict[str, object]:
+    if command == "rollback":
+        target = {"file": result.file_path.name, "symbol": result.symbol}
+        payload = {
+            "operation": "rollback",
+            "source_operation": result.source_operation,
+            "source_operation_id": result.source_operation_id,
+            "operation_id": result.rollback_operation_id,
+            "target": target,
+            "written": result.written,
+            "logged": result.logged,
+            "byte_exact": result.byte_exact,
+            "before_sha256": result.before_sha256,
+            "restored_sha256": result.after_sha256,
+            "diff": result.preview_diff_text,
+        }
+        if output_format == "json":
+            return payload
+        return payload
+
+    payload = {
+        "operation": command,
+        "operation_id": result.operation_id,
+        "target": {"file": result.file_path.name, "symbol": result.symbol},
+        "written": not dry_run,
+        "logged": result.logged,
+        "rollback_available": result.rollback_available,
+        "diff": result.preview_diff_text if dry_run else result.git_diff_text,
+        "before_sha256": result.before_sha256,
+        "after_sha256": result.after_sha256,
+    }
+    if command == "add-return-type":
+        payload["annotation"] = result.annotation
+    if result.pytest_command is not None:
+        payload["tests"] = {
+            "command": result.pytest_command,
+            "exit_code": result.pytest_exit_code,
+            "status": result.pytest_status,
+        }
+    else:
+        payload["tests"] = None
+    return payload
+
+
+def _emit_error(command: str, exc: ProtocolError, output_format: str, *, meta: dict[str, object] | None = None) -> int:
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command=command,
+                ok=False,
+                status=_error_status_for_code(exc.code),
+                error=_build_error_payload(exc),
+                result=None,
+                meta=meta or {},
+            )
+        )
+    else:
+        _print_error(str(exc))
+    return exc.exit_code
 
 
 def _serialize_scan_records(records, output_format: str) -> str:
@@ -97,6 +180,7 @@ def _cmd_add_docstring(
     test_command: str | None,
     dry_run: bool,
     db: Path | None,
+    output_format: str,
 ) -> int:
     try:
         result = add_docstring(
@@ -109,8 +193,26 @@ def _cmd_add_docstring(
             dry_run=dry_run,
         )
     except GitError as exc:
-        _print_error(str(exc))
-        return 1
+        return _emit_error("add-docstring", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="add-docstring",
+                ok=result.exit_code == 0,
+                status="preview" if dry_run else result.status,
+                error=None
+                if result.exit_code == 0
+                else {
+                    "code": "TESTS_FAILED",
+                    "message": "pytest exited with a non-zero status",
+                    "details": {"exit_code": result.pytest_exit_code},
+                },
+                result=_build_operation_result_payload("add-docstring", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
 
     print("SurePython v0.1")
     print(f"Project:\n  {result.project_root}")
@@ -140,16 +242,14 @@ def _cmd_add_docstring(
         print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
         if result.pytest_status:
             print(f"  Status: {result.pytest_status}")
-    if result.db_path is not None:
+    if result.logged:
         print("Log:")
         print(f"  SQLite: {result.db_path}")
     print("Next:")
     print("  Run:")
     print("    surepython diff")
     print("    surepython log --db <path>")
-    if result.pytest_exit_code not in (None, 0):
-        return 1
-    return 0
+    return result.exit_code
 
 
 def _cmd_add_return_type(
@@ -160,6 +260,7 @@ def _cmd_add_return_type(
     test_command: str | None,
     dry_run: bool,
     db: Path | None,
+    output_format: str,
 ) -> int:
     try:
         result = add_return_type(
@@ -173,8 +274,26 @@ def _cmd_add_return_type(
             dry_run=dry_run,
         )
     except GitError as exc:
-        _print_error(str(exc))
-        return 1
+        return _emit_error("add-return-type", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="add-return-type",
+                ok=result.exit_code == 0,
+                status="preview" if dry_run else result.status,
+                error=None
+                if result.exit_code == 0
+                else {
+                    "code": "TESTS_FAILED",
+                    "message": "pytest exited with a non-zero status",
+                    "details": {"exit_code": result.pytest_exit_code},
+                },
+                result=_build_operation_result_payload("add-return-type", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
 
     print("SurePython v0.1")
     print(f"Project:\n  {result.project_root}")
@@ -205,16 +324,14 @@ def _cmd_add_return_type(
         print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
         if result.pytest_status:
             print(f"  Status: {result.pytest_status}")
-    if result.db_path is not None:
+    if result.logged:
         print("Log:")
         print(f"  SQLite: {result.db_path}")
     print("Next:")
     print("  Run:")
     print("    surepython diff")
     print("    surepython log --db <path>")
-    if result.pytest_exit_code not in (None, 0):
-        return 1
-    return 0
+    return result.exit_code
 
 
 def _cmd_diff() -> int:
@@ -243,15 +360,34 @@ def _cmd_log(db: Path) -> int:
     return 0
 
 
-def _cmd_rollback(last: bool, db: Path, dry_run: bool) -> int:
+def _cmd_rollback(last: bool, db: Path, dry_run: bool, output_format: str) -> int:
     if not last:
         _print_error("Only --last rollback is supported")
         return 1
     try:
         result = rollback_last(db, dry_run=dry_run)
-    except (FileNotFoundError, GitError) as exc:
-        _print_error(str(exc))
-        return 1
+    except FileNotFoundError as exc:
+        return _emit_error(
+            "rollback",
+            GitError(str(exc), code="ROLLBACK_NOT_AVAILABLE"),
+            output_format,
+            meta={"dry_run": dry_run, "format": output_format},
+        )
+    except GitError as exc:
+        return _emit_error("rollback", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="rollback",
+                ok=True,
+                status="preview" if dry_run else result.status,
+                error=None,
+                result=_build_operation_result_payload("rollback", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
 
     print("SurePython v0.1")
     print(f"Project:\n  {result.project_root}")
@@ -262,9 +398,10 @@ def _cmd_rollback(last: bool, db: Path, dry_run: bool) -> int:
     print("Rollback diff:")
     if result.preview_diff_text:
         print(result.preview_diff_text.rstrip())
-    print("Log:")
-    print(f"  SQLite: {result.db_path}")
-    return 0
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
+    return result.exit_code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -285,6 +422,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--test-command")
     add_parser.add_argument("--dry-run", action="store_true")
     add_parser.add_argument("--db", type=Path)
+    add_parser.add_argument("--format", choices=["text", "json"], default="text")
 
     return_parser = subparsers.add_parser("add-return-type", help="Add an explicit return annotation")
     return_parser.add_argument("file_path", type=Path)
@@ -294,6 +432,7 @@ def build_parser() -> argparse.ArgumentParser:
     return_parser.add_argument("--test-command")
     return_parser.add_argument("--dry-run", action="store_true")
     return_parser.add_argument("--db", type=Path)
+    return_parser.add_argument("--format", choices=["text", "json"], default="text")
 
     subparsers.add_parser("diff", help="Show git diff")
 
@@ -304,6 +443,7 @@ def build_parser() -> argparse.ArgumentParser:
     rollback_parser.add_argument("--last", action="store_true", required=True)
     rollback_parser.add_argument("--db", type=Path, required=True)
     rollback_parser.add_argument("--dry-run", action="store_true")
+    rollback_parser.add_argument("--format", choices=["text", "json"], default="text")
 
     return parser
 
@@ -312,30 +452,66 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "scan":
-        return _cmd_scan(args.path, args.format)
-    if args.command == "capabilities":
-        return _cmd_capabilities(args.format)
-    if args.command == "add-docstring":
-        return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command, args.dry_run, args.db)
-    if args.command == "add-return-type":
-        return _cmd_add_return_type(
-            args.file_path,
-            args.function,
-            args.annotation,
-            args.test,
-            args.test_command,
-            args.dry_run,
-            args.db,
+    try:
+        if args.command == "scan":
+            return _cmd_scan(args.path, args.format)
+        if args.command == "capabilities":
+            return _cmd_capabilities(args.format)
+        if args.command == "add-docstring":
+            return _cmd_add_docstring(
+                args.file_path,
+                args.function,
+                args.test,
+                args.test_command,
+                args.dry_run,
+                args.db,
+                args.format,
+            )
+        if args.command == "add-return-type":
+            return _cmd_add_return_type(
+                args.file_path,
+                args.function,
+                args.annotation,
+                args.test,
+                args.test_command,
+                args.dry_run,
+                args.db,
+                args.format,
+            )
+        if args.command == "diff":
+            return _cmd_diff()
+        if args.command == "log":
+            return _cmd_log(args.db)
+        if args.command == "rollback":
+            return _cmd_rollback(args.last, args.db, args.dry_run, args.format)
+        parser.error("unknown command")
+        return 2
+    except ProtocolError as exc:
+        return _emit_error(
+            args.command,
+            exc,
+            getattr(args, "format", "text"),
+            meta={"dry_run": getattr(args, "dry_run", False), "format": getattr(args, "format", "text")},
         )
-    if args.command == "diff":
-        return _cmd_diff()
-    if args.command == "log":
-        return _cmd_log(args.db)
-    if args.command == "rollback":
-        return _cmd_rollback(args.last, args.db, args.dry_run)
-    parser.error("unknown command")
-    return 2
+    except Exception as exc:  # pragma: no cover - defensive
+        if getattr(args, "format", "text") == "json":
+            _print_json_response(
+                build_protocol_response(
+                    command=args.command,
+                    ok=False,
+                    status="failed",
+                    error={
+                        "code": "INTERNAL_ERROR",
+                        "message": str(exc) or "internal error",
+                        "details": {},
+                    },
+                    result=None,
+                    meta={"dry_run": getattr(args, "dry_run", False), "format": "json"},
+                )
+            )
+            return EXIT_INTERNAL
+        _print_error(str(exc))
+        return EXIT_INTERNAL
 
 
 if __name__ == "__main__":

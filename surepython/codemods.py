@@ -4,7 +4,7 @@ import ast
 import difflib
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import libcst as cst
@@ -44,6 +44,10 @@ class AddDocstringResult:
     pytest_status: str | None
     status: str
     message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,10 @@ class AddReturnTypeResult:
     pytest_status: str | None
     status: str
     message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
 
 
 def _has_docstring(node: ast.AST) -> bool:
@@ -103,9 +111,9 @@ def _resolve_target(records, target: str) -> str:
             and record.type in {"function", "method"}
         ]
     if not matches:
-        raise GitError("Target symbol not found")
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
     if len(matches) > 1:
-        raise GitError("Target symbol is ambiguous")
+        raise GitError("Target symbol is ambiguous", code="TARGET_AMBIGUOUS")
     return matches[0].qualified_name
 
 
@@ -121,12 +129,16 @@ def _encode_python_text(text: str, bom: bytes, encoding: str) -> bytes:
 
 def _validate_return_annotation(annotation: str) -> cst.BaseExpression:
     if not annotation.strip():
-        raise GitError("Return annotation is empty")
+        raise GitError("Return annotation is empty", code="ANNOTATION_REQUIRED")
     try:
         expression = cst.parse_expression(annotation)
         ast.parse(f"def _surepython_probe() -> {annotation}:\n    pass\n")
     except Exception as exc:
-        raise GitError(f"Return annotation is invalid: {annotation}") from exc
+        raise GitError(
+            f"Return annotation is invalid: {annotation}",
+            code="ANNOTATION_INVALID",
+            details={"annotation": annotation},
+        ) from exc
     return expression
 
 
@@ -178,7 +190,7 @@ def _write_state(
     pytest_status: str | None,
     status: str,
     message: str | None,
-) -> None:
+) -> int | None:
     record = OperationRecord(
         created_at=now_utc_iso(),
         project_path=str(project_root),
@@ -194,9 +206,11 @@ def _write_state(
         status=status,
         message=message,
     )
-    write_last_operation(record)
-    if db_path is not None:
-        insert_record(db_path, record)
+    operation_id: int | None = None
+    if db_path is not None and status not in {"planned", "refused"}:
+        operation_id = insert_record(db_path, record)
+    write_last_operation(replace(record, operation_id=operation_id))
+    return operation_id
 
 
 class _DocstringInserter(cst.CSTTransformer):
@@ -229,7 +243,7 @@ class _DocstringInserter(cst.CSTTransformer):
                     and isinstance(first_stmt.body[0], cst.Expr)
                     and isinstance(first_stmt.body[0].value, cst.SimpleString)
                 ):
-                    raise GitError("Target already has a docstring")
+                    raise GitError("Target already has a docstring", code="DOCSTRING_EXISTS")
 
     def leave_FunctionDef(
         self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
@@ -270,7 +284,7 @@ class _ReturnTypeInserter(cst.CSTTransformer):
         is_target = qname == self.target_qname
         self.function_stack.append(is_target)
         if is_target and node.returns is not None:
-            raise GitError("Target already has a return annotation")
+            raise GitError("Target already has a return annotation", code="ANNOTATION_EXISTS")
 
     def leave_FunctionDef(
         self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
@@ -296,11 +310,11 @@ def add_docstring(
 ) -> AddDocstringResult:
     file_path = file_path.resolve()
     if not file_path.exists():
-        raise GitError("File does not exist")
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
 
     context = ensure_clean_git_repo(project_root or file_path.parent)
     if not is_within_root(file_path, context.root):
-        raise GitError("File is outside the authorized project root")
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
 
     records = scan_file(file_path)
     target_qname = _resolve_target(records, target)
@@ -326,7 +340,11 @@ def add_docstring(
             status="refused",
             message=f"LibCST parse failed: {exc}",
         )
-        raise GitError(f"LibCST parse failed: {exc}") from exc
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
 
     module = ast.parse(source, filename=str(file_path))
     node = _find_target_node(module, target_qname)
@@ -346,7 +364,7 @@ def add_docstring(
             status="refused",
             message="Target symbol not found",
         )
-        raise GitError("Target symbol not found")
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
 
     if _has_docstring(node):
         _write_state(
@@ -364,7 +382,7 @@ def add_docstring(
             status="refused",
             message="Target already has a docstring",
         )
-        raise GitError("Target already has a docstring")
+        raise GitError("Target already has a docstring", code="DOCSTRING_EXISTS")
 
     cst_module = cst.parse_module(source)
     transformer = _DocstringInserter(target_qname)
@@ -385,7 +403,7 @@ def add_docstring(
             status="refused",
             message="Target symbol not found",
         )
-        raise GitError("Target symbol not found")
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
 
     updated_source = updated_module.code
     preview_diff_text = _preview_diff(file_path, source, updated_source)
@@ -412,8 +430,9 @@ def add_docstring(
             message = f"{message} Pytest output: {pytest_output}"
         status = "tested" if pytest_exit_code == 0 else "failed"
 
+    operation_id: int | None = None
     if not dry_run:
-        _write_state(
+        operation_id = _write_state(
             project_root=context.root,
             file_path=file_path,
             db_path=db_path,
@@ -445,6 +464,7 @@ def add_docstring(
             message=message,
         )
 
+    logged = operation_id is not None
     return AddDocstringResult(
         file_path=file_path,
         project_root=context.root,
@@ -460,6 +480,10 @@ def add_docstring(
         pytest_status=pytest_status,
         status=status,
         message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
     )
 
 
@@ -476,12 +500,12 @@ def add_return_type(
 ) -> AddReturnTypeResult:
     file_path = file_path.resolve()
     if not file_path.exists():
-        raise GitError("File does not exist")
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
 
     annotation_expression = _validate_return_annotation(annotation)
     context = ensure_clean_git_repo(project_root or file_path.parent)
     if not is_within_root(file_path, context.root):
-        raise GitError("File is outside the authorized project root")
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
 
     records = scan_file(file_path)
     target_qname = _resolve_target(records, target)
@@ -508,7 +532,11 @@ def add_return_type(
             status="refused",
             message=f"LibCST parse failed: {exc}",
         )
-        raise GitError(f"LibCST parse failed: {exc}") from exc
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
 
     module = ast.parse(source, filename=str(file_path))
     node = _find_target_node(module, target_qname)
@@ -528,9 +556,9 @@ def add_return_type(
             status="refused",
             message="Target symbol not found",
         )
-        raise GitError("Target symbol not found")
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        raise GitError("Target is not a function or method")
+        raise GitError("Target is not a function or method", code="TARGET_UNSUPPORTED")
     if node.returns is not None:
         _write_state(
             project_root=context.root,
@@ -547,7 +575,7 @@ def add_return_type(
             status="refused",
             message="Target already has a return annotation",
         )
-        raise GitError("Target already has a return annotation")
+        raise GitError("Target already has a return annotation", code="ANNOTATION_EXISTS")
 
     cst_module = cst.parse_module(source)
     transformer = _ReturnTypeInserter(target_qname, annotation)
@@ -569,7 +597,7 @@ def add_return_type(
             status="refused",
             message="Target symbol not found",
         )
-        raise GitError("Target symbol not found")
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
 
     updated_source = updated_module.code
     updated_bytes = _encode_python_text(updated_source, bom, encoding)
@@ -601,8 +629,9 @@ def add_return_type(
             message = f"{message} Pytest output: {pytest_output}"
         status = "tested" if pytest_exit_code == 0 else "failed"
 
+    operation_id: int | None = None
     if not dry_run:
-        _write_state(
+        operation_id = _write_state(
             project_root=context.root,
             file_path=file_path,
             db_path=db_path,
@@ -634,6 +663,7 @@ def add_return_type(
             message=message,
         )
 
+    logged = operation_id is not None
     return AddReturnTypeResult(
         file_path=file_path,
         project_root=context.root,
@@ -650,4 +680,8 @@ def add_return_type(
         pytest_status=pytest_status,
         status=status,
         message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
     )

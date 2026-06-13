@@ -97,6 +97,7 @@ Exemple avec une méthode :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run
+.\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run --format json
 ```
 
 Le mode `--dry-run` :
@@ -123,6 +124,7 @@ Commande réelle avec tests et log SQLite :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --test --db .\surepython_lab.db --format json
 ```
 
 Effets attendus :
@@ -141,12 +143,14 @@ Prévisualisation :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --dry-run
+.\.venv\Scripts\python.exe -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --dry-run --format json
 ```
 
 Application réelle avec tests et log :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --test --db .\surepython_lab.db --format json
 ```
 
 Contrat :
@@ -159,6 +163,8 @@ Contrat :
 - le rollback reste explicite et vérifié par hash.
 
 SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
+
+Les commandes `add-docstring`, `add-return-type` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
 
 ## 5. Consulter le diff
 
@@ -177,7 +183,7 @@ Si aucun dépôt Git n'est détecté, SurePython refuse.
 
 ## 6. Journalisation SQLite
 
-`add-docstring --db` écrit automatiquement une ligne dans `surepython_operations`.
+Les opérations réelles avec `--db` écrivent automatiquement une ligne dans `surepython_operations`. Les dry-runs gardent `operation_id: null` dans le JSON et ne créent pas de ligne SQLite.
 
 La commande manuelle existe toujours :
 
@@ -195,11 +201,12 @@ Le rollback est explicite et exige une base SQLite :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db --dry-run
+.\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db --dry-run --format json
 ```
 
 SurePython vérifie notamment :
 
-- présence d'un enregistrement `add-docstring` compatible
+- présence d'un enregistrement compatible (`add-docstring` ou `add-return-type`)
 - fichier actuel présent
 - dépôt Git propre
 - fichier dans la racine autorisée
@@ -214,11 +221,12 @@ Seulement si le dry-run est correct :
 
 ```powershell
 .\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython rollback --last --db .\surepython_lab.db --format json
 ```
 
 Le rollback réel :
 
-- restaure uniquement l'opération `add-docstring` journalisée
+- restaure uniquement l'opération compatible journalisée (`add-docstring` ou `add-return-type`)
 - écrit les octets restaurés seulement après validation du hash
 - journalise une opération `rollback` avec statut `rolled_back`
 
@@ -240,6 +248,8 @@ $env:TMP = "$PWD\.tmp"
 .\.venv\Scripts\python.exe -m pytest --basetemp .\.tmp\pytest_tutorial
 .\.venv\Scripts\python.exe -m surepython scan tests\fixtures --format json
 .\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run
+.\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run --format json
+.\.venv\Scripts\python.exe -m surepython add-return-type tests\fixtures\sample_module.py --function SampleClass.sample_method --annotation "str" --dry-run --format json
 .\.venv\Scripts\python.exe -m surepython diff
 git status --short
 ```

@@ -30,6 +30,13 @@ class RollbackResult:
     preview_diff_text: str
     status: str
     message: str
+    source_operation: str
+    source_operation_id: int | None
+    rollback_operation_id: int | None
+    written: bool
+    logged: bool
+    byte_exact: bool
+    exit_code: int
 
 
 def _preview_diff(file_path: Path, before: str, after: str) -> str:
@@ -129,7 +136,7 @@ def _select_restored_bytes(
             candidate = _encode_python_text(text_variant, bom_variant, encoding)
             if _sha256_bytes(candidate) == expected_sha256:
                 return candidate
-    raise GitError("Rollback result does not match logged before_sha256")
+    raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE")
 
 
 class _DocstringRemover(cst.CSTTransformer):
@@ -161,7 +168,7 @@ class _DocstringRemover(cst.CSTTransformer):
 
         body = updated_node.body.body
         if not body:
-            raise GitError("Target function body is empty")
+            raise GitError("Target function body is empty", code="LEGACY_UNVERIFIABLE")
 
         first_stmt = body[0]
         if not (
@@ -171,7 +178,10 @@ class _DocstringRemover(cst.CSTTransformer):
             and isinstance(first_stmt.body[0].value, cst.SimpleString)
             and first_stmt.body[0].value.value == TODO_DOCSTRING
         ):
-            raise GitError("Target does not contain the SurePython skeleton docstring")
+            raise GitError(
+                "Target does not contain the SurePython skeleton docstring",
+                code="LEGACY_UNVERIFIABLE",
+            )
 
         self.matched = True
         return updated_node.with_changes(
@@ -206,7 +216,7 @@ class _ReturnTypeRemover(cst.CSTTransformer):
         if not is_target:
             return updated_node
         if updated_node.returns is None:
-            raise GitError("Target does not contain a return annotation")
+            raise GitError("Target does not contain a return annotation", code="LEGACY_UNVERIFIABLE")
         self.matched = True
         return updated_node.with_changes(returns=None)
 
@@ -218,32 +228,44 @@ def _require_record_fields(record: OperationRecord) -> None:
         if not getattr(record, name)
     ]
     if missing:
-        raise GitError(f"Operation is missing rollback data: {', '.join(missing)}")
+        raise GitError(
+            f"Operation is missing rollback data: {', '.join(missing)}",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
     if record.operation not in {"add-docstring", "add-return-type"}:
-        raise GitError(f"Operation is not rollback-compatible: {record.operation}")
+        raise GitError(
+            f"Operation is not rollback-compatible: {record.operation}",
+            code="UNKNOWN_SQLITE_OPERATION",
+        )
     if record.status not in {"applied", "tested", "failed"}:
-        raise GitError(f"Operation status is not rollback-compatible: {record.status}")
+        raise GitError(
+            f"Operation status is not rollback-compatible: {record.status}",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
 
 
 def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     if db_path is None:
-        raise GitError("Rollback requires --db")
+        raise GitError("Rollback requires --db", code="ROLLBACK_NOT_AVAILABLE")
 
     record = read_last_supported_operation(db_path)
     _require_record_fields(record)
 
     file_path = Path(record.file_path).resolve()
     if not file_path.exists():
-        raise GitError("Rollback target file does not exist")
+        raise GitError("Rollback target file does not exist", code="FILE_NOT_FOUND")
 
     project_root = Path(record.project_path).resolve()
     context = ensure_clean_git_repo(project_root)
     if not is_within_root(file_path, context.root):
-        raise GitError("Rollback target file is outside the authorized project root")
+        raise GitError(
+            "Rollback target file is outside the authorized project root",
+            code="FILE_OUTSIDE_PROJECT",
+        )
 
     current_sha = sha256_file(file_path)
     if current_sha != record.after_sha256:
-        raise GitError("Current file hash does not match the logged after_sha256")
+        raise GitError("Current file hash does not match the logged after_sha256", code="HASH_MISMATCH")
 
     source_bytes = file_path.read_bytes()
     source, bom, encoding = _decode_python_bytes(source_bytes)
@@ -255,10 +277,13 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
         remover = _ReturnTypeRemover(record.symbol or "")
         operation_label = "add-return-type"
     else:  # pragma: no cover - protected by _require_record_fields
-        raise GitError(f"Operation is not rollback-compatible: {record.operation}")
+        raise GitError(
+            f"Operation is not rollback-compatible: {record.operation}",
+            code="UNKNOWN_SQLITE_OPERATION",
+        )
     updated_module = module.visit(remover)
     if not remover.matched:
-        raise GitError("Rollback target symbol was not modified")
+        raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
 
     restored_source = updated_module.code
     restored_bytes = _select_restored_bytes(
@@ -270,7 +295,9 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     )
     candidate_sha = _sha256_bytes(restored_bytes)
     preview_diff_text = _preview_diff(file_path, source, restored_source)
+    byte_exact = candidate_sha == record.before_sha256
 
+    rollback_operation_id: int | None = None
     if dry_run:
         restored_sha = current_sha
         status = "planned"
@@ -281,6 +308,7 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
         status = "rolled_back"
         message = f"Rolled back {operation_label} operation."
         rollback_record = OperationRecord(
+            operation_id=None,
             created_at=now_utc_iso(),
             project_path=str(context.root),
             file_path=str(file_path),
@@ -296,7 +324,25 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
             message=message,
         )
         write_last_operation(rollback_record)
-        insert_record(db_path, rollback_record)
+        rollback_operation_id = insert_record(db_path, rollback_record)
+        write_last_operation(
+            OperationRecord(
+                operation_id=rollback_operation_id,
+                created_at=rollback_record.created_at,
+                project_path=rollback_record.project_path,
+                file_path=rollback_record.file_path,
+                operation=rollback_record.operation,
+                symbol=rollback_record.symbol,
+                before_sha256=rollback_record.before_sha256,
+                after_sha256=rollback_record.after_sha256,
+                git_diff=rollback_record.git_diff,
+                pytest_command=rollback_record.pytest_command,
+                pytest_exit_code=rollback_record.pytest_exit_code,
+                pytest_status=rollback_record.pytest_status,
+                status=rollback_record.status,
+                message=rollback_record.message,
+            )
+        )
 
     return RollbackResult(
         db_path=db_path,
@@ -309,4 +355,11 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
         preview_diff_text=preview_diff_text,
         status=status,
         message=message,
+        source_operation=record.operation or "",
+        source_operation_id=record.operation_id,
+        rollback_operation_id=rollback_operation_id,
+        written=not dry_run,
+        logged=rollback_operation_id is not None,
+        byte_exact=byte_exact,
+        exit_code=0,
     )

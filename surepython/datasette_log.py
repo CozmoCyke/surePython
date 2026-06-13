@@ -27,6 +27,7 @@ class OperationRecord:
     pytest_status: str | None
     status: str
     message: str | None
+    operation_id: int | None = None
 
 
 def now_utc_iso() -> str:
@@ -77,11 +78,11 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
     connection.commit()
 
 
-def insert_record(db_path: Path, record: OperationRecord) -> None:
+def insert_record(db_path: Path, record: OperationRecord) -> int:
     connection = sqlite3.connect(str(db_path))
     try:
         ensure_schema(connection)
-        connection.execute(
+        cursor = connection.execute(
             """
             INSERT INTO surepython_operations (
                 created_at,
@@ -116,6 +117,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> None:
             ),
         )
         connection.commit()
+        return int(cursor.lastrowid)
     finally:
         connection.close()
 
@@ -130,6 +132,7 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         row = connection.execute(
             """
             SELECT
+                id,
                 created_at,
                 project_path,
                 file_path,
@@ -157,19 +160,20 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         raise FileNotFoundError("No applicable operation found")
 
     return OperationRecord(
-        created_at=row[0],
-        project_path=row[1],
-        file_path=row[2],
-        operation=row[3],
-        symbol=row[4],
-        before_sha256=row[5],
-        after_sha256=row[6],
-        git_diff=row[7],
-        pytest_command=row[8],
-        pytest_exit_code=row[9],
-        pytest_status=row[10],
-        status=row[11],
-        message=row[12],
+        operation_id=row[0],
+        created_at=row[1],
+        project_path=row[2],
+        file_path=row[3],
+        operation=row[4],
+        symbol=row[5],
+        before_sha256=row[6],
+        after_sha256=row[7],
+        git_diff=row[8],
+        pytest_command=row[9],
+        pytest_exit_code=row[10],
+        pytest_status=row[11],
+        status=row[12],
+        message=row[13],
     )
 
 
