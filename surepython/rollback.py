@@ -102,13 +102,14 @@ def _byte_line_removal_candidates(
     *,
     bom: bytes,
     encoding: str,
+    needle_text: str,
 ) -> list[bytes]:
     lines = _split_lines_keepends(source_bytes)
     candidates: list[bytes] = []
-    encoded_docstring = TODO_DOCSTRING.encode(encoding)
+    encoded_needle = needle_text.encode(encoding)
 
     for index, line in enumerate(lines):
-        if encoded_docstring not in line:
+        if encoded_needle not in line:
             continue
         candidate = b"".join([*lines[:index], *lines[index + 1 :]])
         try:
@@ -130,12 +131,14 @@ def _select_restored_bytes(
     current_bom: bytes,
     encoding: str,
     expected_sha256: str,
+    needle_text: str,
 ) -> bytes:
     for candidate in _byte_line_removal_candidates(
         source_bytes,
         restored_source,
         bom=current_bom,
         encoding=encoding,
+        needle_text=needle_text,
     ):
         if _sha256_bytes(candidate) == expected_sha256:
             return candidate
@@ -313,6 +316,24 @@ class _ParameterTypeRemover(cst.CSTTransformer):
         )
 
 
+def _remove_import_statement(module: cst.Module, record: OperationRecord) -> tuple[cst.Module, bool]:
+    updated_body = []
+    matched = False
+    for stmt in module.body:
+        if (
+            not matched
+            and isinstance(stmt, cst.SimpleStatementLine)
+            and len(stmt.body) == 1
+            and isinstance(stmt.body[0], (cst.Import, cst.ImportFrom))
+        ):
+            statement_code = module.code_for_node(stmt).strip()
+            if statement_code == (record.import_statement or ""):
+                matched = True
+                continue
+        updated_body.append(stmt)
+    return module.with_changes(body=tuple(updated_body)), matched
+
+
 def _require_record_fields(record: OperationRecord) -> None:
     missing = [
         name
@@ -329,7 +350,17 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: parameter",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type", "add-parameter-type"}:
+    if record.operation == "add-import" and not record.import_statement:
+        raise GitError(
+            "Operation is missing rollback data: import_statement",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "add-import" and not record.import_binding:
+        raise GitError(
+            "Operation is missing rollback data: import_binding",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation not in {"add-docstring", "add-return-type", "add-parameter-type", "add-import"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -384,15 +415,26 @@ def _prepare_rollback_record(
     if record.operation == "add-docstring":
         remover = _DocstringRemover(record.symbol or "")
         operation_label = "add-docstring"
+        updated_module = module.visit(remover)
+        if not remover.matched:
+            raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
     elif record.operation == "add-return-type":
         remover = _ReturnTypeRemover(record.symbol or "")
         operation_label = "add-return-type"
-    else:
+        updated_module = module.visit(remover)
+        if not remover.matched:
+            raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
+    elif record.operation == "add-parameter-type":
         remover = _ParameterTypeRemover(record.symbol or "", record.parameter or "")
         operation_label = "add-parameter-type"
-    updated_module = module.visit(remover)
-    if not remover.matched:
-        raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
+        updated_module = module.visit(remover)
+        if not remover.matched:
+            raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
+    else:
+        updated_module, matched = _remove_import_statement(module, record)
+        operation_label = "add-import"
+        if not matched:
+            raise GitError("Rollback target import was not modified", code="LEGACY_UNVERIFIABLE")
 
     restored_source = updated_module.code
     restored_bytes = _select_restored_bytes(
@@ -401,6 +443,7 @@ def _prepare_rollback_record(
         current_bom=bom,
         encoding=encoding,
         expected_sha256=record.before_sha256 or "",
+        needle_text=record.import_statement or TODO_DOCSTRING,
     )
     candidate_sha = _sha256_bytes(restored_bytes)
     preview_diff_text = _preview_diff(file_path, source, restored_source)
@@ -426,6 +469,8 @@ def _prepare_rollback_record(
             file_path=str(file_path),
             operation="rollback",
             symbol=record.symbol,
+            import_statement=record.import_statement,
+            import_binding=record.import_binding,
             parameter=record.parameter,
             before_sha256=current_sha,
             after_sha256=restored_sha,
@@ -447,6 +492,8 @@ def _prepare_rollback_record(
                 file_path=rollback_record.file_path,
                 operation=rollback_record.operation,
                 symbol=rollback_record.symbol,
+                import_statement=rollback_record.import_statement,
+                import_binding=rollback_record.import_binding,
                 parameter=rollback_record.parameter,
                 before_sha256=rollback_record.before_sha256,
                 after_sha256=rollback_record.after_sha256,

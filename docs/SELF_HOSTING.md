@@ -2,7 +2,7 @@
 
 SurePython Phase 2.2 uses SurePython as a safety layer when the requested change already matches a supported operation.
 
-Phase 2.3 extends the product with `add-parameter-type`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation changes should use it.
+Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation or import changes should use it.
 
 ## Principle
 
@@ -30,6 +30,7 @@ Use SurePython when the intended edit is one of the supported micro-modification
 - add a skeleton docstring to a function or method
 - add an explicit return annotation to a function or method
 - add an explicit annotation to a specific parameter on a function or method
+- add one explicit top-level import statement with a single binding to a module file
 
 Use the explicit rollback path when the operation has already been logged and must be reversed safely.
 

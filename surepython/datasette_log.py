@@ -27,6 +27,8 @@ class OperationRecord:
     pytest_status: str | None
     status: str
     message: str | None
+    import_statement: str | None = None
+    import_binding: str | None = None
     parameter: str | None = None
     operation_id: int | None = None
     source_operation_id: int | None = None
@@ -66,6 +68,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             file_path TEXT NOT NULL,
             operation TEXT NOT NULL,
             symbol TEXT,
+            import_statement TEXT,
+            import_binding TEXT,
             parameter TEXT,
             before_sha256 TEXT,
             after_sha256 TEXT,
@@ -89,6 +93,12 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.commit()
     if "parameter" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN parameter TEXT")
+        connection.commit()
+    if "import_statement" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN import_statement TEXT")
+        connection.commit()
+    if "import_binding" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN import_binding TEXT")
         connection.commit()
 
     connection.execute(
@@ -124,6 +134,8 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 file_path,
                 operation,
                 symbol,
+                import_statement,
+                import_binding,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -134,7 +146,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 status,
                 message,
                 source_operation_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -142,6 +154,8 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.file_path,
                 record.operation,
                 record.symbol,
+                record.import_statement,
+                record.import_binding,
                 record.parameter,
                 record.before_sha256,
                 record.after_sha256,
@@ -176,6 +190,8 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 file_path,
                 operation,
                 symbol,
+                import_statement,
+                import_binding,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -206,16 +222,18 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         file_path=row[3],
         operation=row[4],
         symbol=row[5],
-        parameter=row[6],
-        before_sha256=row[7],
-        after_sha256=row[8],
-        git_diff=row[9],
-        pytest_command=row[10],
-        pytest_exit_code=row[11],
-        pytest_status=row[12],
-        status=row[13],
-        message=row[14],
-        source_operation_id=row[15],
+        import_statement=row[6],
+        import_binding=row[7],
+        parameter=row[8],
+        before_sha256=row[9],
+        after_sha256=row[10],
+        git_diff=row[11],
+        pytest_command=row[12],
+        pytest_exit_code=row[13],
+        pytest_status=row[14],
+        status=row[15],
+        message=row[16],
+        source_operation_id=row[17],
     )
 
 
@@ -242,6 +260,8 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 file_path,
                 operation,
                 symbol,
+                import_statement,
+                import_binding,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -270,16 +290,18 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         file_path=row[3],
         operation=row[4],
         symbol=row[5],
-        parameter=row[6],
-        before_sha256=row[7],
-        after_sha256=row[8],
-        git_diff=row[9],
-        pytest_command=row[10],
-        pytest_exit_code=row[11],
-        pytest_status=row[12],
-        status=row[13],
-        message=row[14],
-        source_operation_id=row[15],
+        import_statement=row[6],
+        import_binding=row[7],
+        parameter=row[8],
+        before_sha256=row[9],
+        after_sha256=row[10],
+        git_diff=row[11],
+        pytest_command=row[12],
+        pytest_exit_code=row[13],
+        pytest_status=row[14],
+        status=row[15],
+        message=row[16],
+        source_operation_id=row[17],
     )
 
 
@@ -299,6 +321,8 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 file_path,
                 operation,
                 symbol,
+                import_statement,
+                import_binding,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -330,14 +354,16 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
         file_path=row[3],
         operation=row[4],
         symbol=row[5],
-        parameter=row[6],
-        before_sha256=row[7],
-        after_sha256=row[8],
-        git_diff=row[9],
-        pytest_command=row[10],
-        pytest_exit_code=row[11],
-        pytest_status=row[12],
-        status=row[13],
-        message=row[14],
-        source_operation_id=row[15],
+        import_statement=row[6],
+        import_binding=row[7],
+        parameter=row[8],
+        before_sha256=row[9],
+        after_sha256=row[10],
+        git_diff=row[11],
+        pytest_command=row[12],
+        pytest_exit_code=row[13],
+        pytest_status=row[14],
+        status=row[15],
+        message=row[16],
+        source_operation_id=row[17],
     )

@@ -8,11 +8,12 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui trois micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui quatre micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
 - ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
+- ajouter une instruction `import` explicite au niveau module, avec un seul binding, uniquement si ce binding n'existe pas déjà.
 
 SurePython ne devine jamais le type. Codex ou l'humain propose l'annotation ; SurePython la vérifie et l'insère exactement.
 
@@ -193,7 +194,35 @@ Contrat :
 
 Comme pour les retours de fonction, SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
 
-Les commandes `add-docstring`, `add-return-type` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+## 4 quater. Ajouter un import explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-import tests\fixtures\sample_module.py --statement "import json" --dry-run
+.\.venv\Scripts\python.exe -m surepython add-import tests\fixtures\sample_module.py --statement "from pathlib import Path" --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-import tests\fixtures\sample_module.py --statement "from pathlib import Path" --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython add-import tests\fixtures\sample_module.py --statement "from pathlib import Path" --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- l'instruction `import` est fournie explicitement ;
+- exactement un binding est autorisé ;
+- les imports multiples, relatifs et wildcard sont refusés ;
+- les conflits de binding sont refusés ;
+- aucun import n'est ajouté automatiquement ;
+- le corps du module n'est pas réorganisé globalement ;
+- le rollback reste explicite et vérifié par hash.
+
+SurePython valide la syntaxe de l'instruction, pas le sens métier du module. L'agent doit fournir l'import exact à insérer.
+
+Les commandes `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
 
 ## 5. Consulter le diff
 
@@ -238,6 +267,7 @@ Le rollback est explicite et exige une base SQLite :
 SurePython vérifie notamment :
 
 - présence d'un enregistrement compatible (`add-docstring` ou `add-return-type`)
+- présence d'un enregistrement compatible (`add-docstring`, `add-return-type`, `add-parameter-type`, ou `add-import`)
 - fichier actuel présent
 - dépôt Git propre
 - fichier dans la racine autorisée
@@ -259,7 +289,7 @@ Seulement si le dry-run est correct :
 
 Le rollback réel :
 
-- restaure uniquement l'opération compatible journalisée (`add-docstring` ou `add-return-type`)
+- restaure uniquement l'opération compatible journalisée (`add-docstring`, `add-return-type`, `add-parameter-type`, ou `add-import`)
 - écrit les octets restaurés seulement après validation du hash
 - journalise une opération `rollback` avec statut `rolled_back`
 - le sélecteur explicite `--id` ne peut être utilisé qu'à la place de `--last`
@@ -299,6 +329,8 @@ Ce parcours prouve que SurePython sait actuellement :
 - prévisualiser une micro-modification
 - ajouter une docstring squelette à un symbole précis
 - ajouter une annotation de retour explicite à un symbole précis
+- ajouter une annotation de paramètre explicite à un symbole précis
+- ajouter une instruction `import` explicite au niveau module
 - lancer pytest après une vraie modification
 - journaliser dans SQLite
 - restaurer une opération cohérente sans approximation

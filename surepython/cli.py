@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from .capabilities import serialize_capabilities
-from .codemods import add_docstring, add_parameter_type, add_return_type
+from .codemods import add_docstring, add_import, add_parameter_type, add_return_type
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
 from .protocol import (
@@ -100,6 +100,13 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
             "file": result.file_path.name,
             "symbol": result.symbol,
             "parameter": result.parameter,
+        }
+    if command == "add-import":
+        payload["binding"] = result.binding
+        payload["statement"] = result.statement
+        payload["target"] = {
+            "file": result.file_path.name,
+            "binding": result.binding,
         }
     if result.pytest_command is not None:
         payload["tests"] = {
@@ -248,6 +255,86 @@ def _cmd_add_docstring(
     else:
         print("Applied:")
         print("  Added skeleton docstring.")
+        print("Diff:")
+        if result.git_stat.strip():
+            print(result.git_stat.rstrip())
+        if result.git_diff_text.strip():
+            print(result.git_diff_text.rstrip())
+    if result.pytest_command:
+        print("Test:")
+        print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
+    print("Next:")
+    print("  Run:")
+    print("    surepython diff")
+    print("    surepython log --db <path>")
+    return result.exit_code
+
+
+def _cmd_add_import(
+    file_path: Path,
+    statement: str,
+    test: bool,
+    test_command: str | None,
+    dry_run: bool,
+    db: Path | None,
+    output_format: str,
+) -> int:
+    try:
+        result = add_import(
+            file_path,
+            statement,
+            project_root=file_path.parent,
+            db_path=db,
+            run_tests=test,
+            test_command=test_command,
+            dry_run=dry_run,
+        )
+    except GitError as exc:
+        return _emit_error("add-import", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="add-import",
+                ok=result.exit_code == 0,
+                status="preview" if dry_run else result.status,
+                error=None
+                if result.exit_code == 0
+                else {
+                    "code": "TESTS_FAILED",
+                    "message": "pytest exited with a non-zero status",
+                    "details": {"exit_code": result.pytest_exit_code},
+                },
+                result=_build_operation_result_payload("add-import", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {result.project_root}")
+    print("Operation:\n  add-import")
+    print(f"Target:\n  {result.file_path.name}::{result.binding}")
+    print(f"Statement:\n  {result.statement}")
+    print("Safety:")
+    print("  Git repository: OK")
+    print("  Git clean: OK")
+    print("  File inside project: OK")
+    print("  LibCST parse: OK")
+    if dry_run:
+        print("Mode:")
+        print("  Dry run; no files changed.")
+        print("Preview diff:")
+        if result.preview_diff_text:
+            print(result.preview_diff_text.rstrip())
+    else:
+        print("Applied:")
+        print("  Added import statement.")
         print("Diff:")
         if result.git_stat.strip():
             print(result.git_stat.rstrip())
@@ -536,6 +623,15 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--db", type=Path)
     add_parser.add_argument("--format", choices=["text", "json"], default="text")
 
+    import_parser = subparsers.add_parser("add-import", help="Add an explicit import statement")
+    import_parser.add_argument("file_path", type=Path)
+    import_parser.add_argument("--statement", required=True)
+    import_parser.add_argument("--test", action="store_true")
+    import_parser.add_argument("--test-command")
+    import_parser.add_argument("--dry-run", action="store_true")
+    import_parser.add_argument("--db", type=Path)
+    import_parser.add_argument("--format", choices=["text", "json"], default="text")
+
     return_parser = subparsers.add_parser("add-return-type", help="Add an explicit return annotation")
     return_parser.add_argument("file_path", type=Path)
     return_parser.add_argument("--function", required=True)
@@ -608,6 +704,16 @@ def main(argv: list[str] | None = None) -> int:
                 args.function,
                 args.parameter,
                 args.annotation,
+                args.test,
+                args.test_command,
+                args.dry_run,
+                args.db,
+                args.format,
+            )
+        if args.command == "add-import":
+            return _cmd_add_import(
+                args.file_path,
+                args.statement,
                 args.test,
                 args.test_command,
                 args.dry_run,

@@ -22,7 +22,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     assert payload["protocol_schema_version"] == "1.0"
     assert payload["capabilities_schema_version"] == "1.0"
     operations = {operation["name"]: operation for operation in payload["operations"]}
-    assert set(operations) == {"add-docstring", "add-return-type", "add-parameter-type"}
+    assert set(operations) == {"add-docstring", "add-return-type", "add-parameter-type", "add-import"}
     assert operations["add-docstring"]["supports_rollback"] is True
     assert operations["add-return-type"]["targets"] == ["function", "method"]
     assert operations["add-return-type"]["required_arguments"] == [
@@ -42,6 +42,9 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "var-keyword",
     ]
     assert "PARAMETER_KIND_UNSUPPORTED" in operations["add-parameter-type"]["possible_error_codes"]
+    assert operations["add-import"]["targets"] == ["module"]
+    assert operations["add-import"]["required_arguments"] == ["file", "statement"]
+    assert "IMPORT_ALREADY_EXISTS" in operations["add-import"]["possible_error_codes"]
     commands = {command["name"]: command for command in payload["commands"]}
     assert set(commands) == {"rollback"}
     assert commands["rollback"]["selectors"] == ["last", "id"]
@@ -57,6 +60,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     assert "add-docstring" in output
     assert "add-return-type" in output
     assert "add-parameter-type" in output
+    assert "add-import" in output
     assert "rollback" in output
 
 

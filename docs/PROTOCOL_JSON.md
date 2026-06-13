@@ -13,6 +13,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `add-docstring`
 - `add-return-type`
 - `add-parameter-type`
+- `add-import`
 - `rollback`
 
 ## General Response Shape
@@ -71,6 +72,14 @@ Common codes include:
 - `PARAMETER_NOT_FOUND`
 - `PARAMETER_ANNOTATION_EXISTS`
 - `PARAMETER_KIND_UNSUPPORTED`
+- `IMPORT_STATEMENT_REQUIRED`
+- `IMPORT_STATEMENT_INVALID`
+- `IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED`
+- `IMPORT_WILDCARD_UNSUPPORTED`
+- `IMPORT_RELATIVE_UNSUPPORTED`
+- `IMPORT_ALREADY_EXISTS`
+- `IMPORT_BINDING_CONFLICT`
+- `IMPORT_PLACEMENT_UNSUPPORTED`
 - `UNSUPPORTED_OPERATION`
 - `UNKNOWN_SQLITE_OPERATION`
 - `HASH_MISMATCH`
@@ -139,6 +148,8 @@ Each command declares:
 - `unsupported_parameter_kinds`
 - `status`
 
+The current supported operations now include `add-import`, which is a top-level module edit that adds exactly one explicit import statement with one binding.
+
 ## Logging And Rollback
 
 - Real operations with `--db` expose an `operation_id`
@@ -146,6 +157,7 @@ Each command declares:
 - Rollback responses expose both the source operation and the rollback log id
 - Rollback responses also expose a `selector` object with `type` and `value`
 - Parameter annotation responses expose the selected `parameter` name in `target`
+- Import insertion responses expose the selected `binding` name and exact `statement` in `target`
 - `legacy/unverifiable` records are refused without writing
 
 ## Text Compatibility

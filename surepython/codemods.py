@@ -97,6 +97,30 @@ class AddParameterTypeResult:
     exit_code: int
 
 
+@dataclass(frozen=True)
+class AddImportResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    binding: str
+    statement: str
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
+
+
 def _has_docstring(node: ast.AST) -> bool:
     return ast.get_docstring(node) is not None
 
@@ -201,6 +225,203 @@ def _resolve_parameter_kind(node: ast.AST, parameter_name: str) -> tuple[str, as
     )
 
 
+@dataclass(frozen=True)
+class _ImportSpec:
+    kind: str
+    module_name: str
+    imported_name: str
+    binding: str
+    canonical_statement: str
+
+
+def _leftmost_binding_name(node: cst.BaseExpression | cst.Attribute | cst.Name) -> str:
+    if isinstance(node, cst.Name):
+        return node.value
+    if isinstance(node, cst.Attribute):
+        return _leftmost_binding_name(node.value)
+    raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID")
+
+
+def _module_code(module: cst.Module, node: cst.CSTNode | None) -> str:
+    if node is None:
+        return ""
+    try:
+        return module.code_for_node(node).strip()
+    except Exception as exc:  # pragma: no cover - defensive
+        raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID") from exc
+
+
+def _parse_import_statement(statement: str) -> tuple[_ImportSpec, cst.SimpleStatementLine]:
+    if not statement.strip():
+        raise GitError("Import statement is required", code="IMPORT_STATEMENT_REQUIRED")
+
+    try:
+        module = cst.parse_module(statement)
+    except Exception as exc:
+        raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID") from exc
+
+    if len(module.body) != 1 or not isinstance(module.body[0], cst.SimpleStatementLine):
+        raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID")
+    statement_line = module.body[0]
+    if len(statement_line.body) != 1:
+        raise GitError("Multiple statements are not supported", code="IMPORT_STATEMENT_INVALID")
+
+    node = statement_line.body[0]
+    canonical_statement = module.code.strip()
+
+    if isinstance(node, cst.Import):
+        if len(node.names) != 1:
+            raise GitError(
+                "Multiple import bindings are not supported",
+                code="IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED",
+            )
+        alias = node.names[0]
+        binding = alias.asname.name.value if alias.asname else _leftmost_binding_name(alias.name)
+        module_name = _module_code(module, alias.name)
+        return (
+            _ImportSpec(
+                kind="import",
+                module_name=module_name,
+                imported_name=module_name,
+                binding=binding,
+                canonical_statement=canonical_statement,
+            ),
+            statement_line,
+        )
+
+    if isinstance(node, cst.ImportFrom):
+        relative = getattr(node, "relative", None)
+        if relative:
+            raise GitError("Relative imports are not supported", code="IMPORT_RELATIVE_UNSUPPORTED")
+        if node.module is None:
+            raise GitError("Relative imports are not supported", code="IMPORT_RELATIVE_UNSUPPORTED")
+        if isinstance(node.names, cst.ImportStar):
+            raise GitError("Wildcard imports are not supported", code="IMPORT_WILDCARD_UNSUPPORTED")
+        if len(node.names) != 1:
+            raise GitError(
+                "Multiple import bindings are not supported",
+                code="IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED",
+            )
+        alias = node.names[0]
+        binding = alias.asname.name.value if alias.asname else _leftmost_binding_name(alias.name)
+        module_name = _module_code(module, node.module)
+        imported_name = _module_code(module, alias.name)
+        return (
+            _ImportSpec(
+                kind="from",
+                module_name=module_name,
+                imported_name=imported_name,
+                binding=binding,
+                canonical_statement=canonical_statement,
+            ),
+            statement_line,
+        )
+
+    raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID")
+
+
+def _existing_import_specs(module: ast.Module) -> list[_ImportSpec]:
+    specs: list[_ImportSpec] = []
+    for node in module.body:
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                binding = alias.asname or alias.name.split(".", 1)[0]
+                specs.append(
+                    _ImportSpec(
+                        kind="import",
+                        module_name=alias.name,
+                        imported_name=alias.name,
+                        binding=binding,
+                        canonical_statement=ast.unparse(node),
+                    )
+                )
+        else:
+            module_name = node.module or ""
+            if node.level:
+                module_name = "." * node.level + module_name
+            for alias in node.names:
+                binding = alias.asname or alias.name
+                specs.append(
+                    _ImportSpec(
+                        kind="from",
+                        module_name=module_name,
+                        imported_name=alias.name,
+                        binding=binding,
+                        canonical_statement=ast.unparse(node),
+                    )
+                )
+    return specs
+
+
+def _find_import_insertion_index(module: cst.Module) -> int:
+    body = list(module.body)
+    index = 0
+    if body:
+        first = body[0]
+        if (
+            isinstance(first, cst.SimpleStatementLine)
+            and len(first.body) == 1
+            and isinstance(first.body[0], cst.Expr)
+            and isinstance(first.body[0].value, cst.SimpleString)
+        ):
+            index = 1
+    while index < len(body):
+        stmt = body[index]
+        if not isinstance(stmt, cst.SimpleStatementLine) or len(stmt.body) != 1:
+            break
+        node = stmt.body[0]
+        if isinstance(node, cst.Import):
+            index += 1
+            continue
+        if isinstance(node, cst.ImportFrom):
+            relative = getattr(node, "relative", None)
+            if relative:
+                break
+            if node.module is None:
+                break
+            index += 1
+            continue
+        break
+    return index
+
+
+def _clone_statement_line(statement_line: cst.SimpleStatementLine) -> cst.SimpleStatementLine:
+    return statement_line.deep_clone()
+
+
+def _apply_import_statement(
+    module_text: str,
+    statement: str,
+) -> tuple[str, _ImportSpec, cst.SimpleStatementLine]:
+    module = cst.parse_module(module_text)
+    requested_spec, statement_line = _parse_import_statement(statement)
+    module_ast = ast.parse(module_text)
+    existing_specs = _existing_import_specs(module_ast)
+
+    for existing in existing_specs:
+        if (
+            existing.kind == requested_spec.kind
+            and existing.module_name == requested_spec.module_name
+            and existing.imported_name == requested_spec.imported_name
+            and existing.binding == requested_spec.binding
+        ):
+            raise GitError("The requested import already exists.", code="IMPORT_ALREADY_EXISTS")
+        if existing.binding == requested_spec.binding and (
+            existing.kind != requested_spec.kind
+            or existing.module_name != requested_spec.module_name
+            or existing.imported_name != requested_spec.imported_name
+        ):
+            raise GitError("The requested import binding already exists.", code="IMPORT_BINDING_CONFLICT")
+
+    insertion_index = _find_import_insertion_index(module)
+    updated_body = list(module.body)
+    updated_body.insert(insertion_index, _clone_statement_line(statement_line))
+    updated_module = module.with_changes(body=tuple(updated_body))
+    return updated_module.code, requested_spec, statement_line
+
+
 def run_pytest(cwd: Path, command: str | None = None) -> tuple[int, str]:
     if command is None:
         completed = subprocess.run(
@@ -242,6 +463,8 @@ def _write_state(
     operation: str,
     symbol: str | None,
     parameter: str | None = None,
+    import_statement: str | None = None,
+    import_binding: str | None = None,
     before_sha256: str | None,
     after_sha256: str | None,
     git_diff_text: str | None,
@@ -258,6 +481,8 @@ def _write_state(
         operation=operation,
         symbol=symbol,
         parameter=parameter,
+        import_statement=import_statement,
+        import_binding=import_binding,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         git_diff=git_diff_text,
@@ -272,6 +497,145 @@ def _write_state(
         operation_id = insert_record(db_path, record)
     write_last_operation(replace(record, operation_id=operation_id))
     return operation_id
+
+
+def add_import(
+    file_path: Path,
+    statement: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> AddImportResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
+
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-import",
+            symbol=None,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+        )
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
+
+    updated_source, requested_spec, _statement_line = _apply_import_statement(source, statement)
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        updated_bytes = _encode_python_text(updated_source, bom, encoding)
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = (
+        f"Planned import statement: {requested_spec.canonical_statement}."
+        if dry_run
+        else f"Added import statement: {requested_spec.canonical_statement}."
+    )
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    operation_id: int | None = None
+    if not dry_run:
+        operation_id = _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-import",
+            symbol=requested_spec.binding,
+            import_statement=requested_spec.canonical_statement,
+            import_binding=requested_spec.binding,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-import",
+            symbol=requested_spec.binding,
+            import_statement=requested_spec.canonical_statement,
+            import_binding=requested_spec.binding,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+
+    logged = operation_id is not None
+    return AddImportResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=requested_spec.binding,
+        binding=requested_spec.binding,
+        statement=requested_spec.canonical_statement,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
+    )
 
 
 class _DocstringInserter(cst.CSTTransformer):
