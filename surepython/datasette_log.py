@@ -144,7 +144,7 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 status,
                 message
             FROM surepython_operations
-            WHERE operation IN ('add-docstring', 'add-return-type')
+            WHERE operation != 'rollback'
               AND status IN ('applied', 'tested', 'failed')
             ORDER BY id DESC
             LIMIT 1
