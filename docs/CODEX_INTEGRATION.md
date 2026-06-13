@@ -28,9 +28,10 @@ SurePython may:
 - preview a supported micro-change
 - add one skeleton docstring to one function or method
 - add one explicit return annotation to one function or method
+- add one explicit parameter annotation to one function or method
 - run pytest after a real edit
 - record the operation in SQLite
-- roll back one compatible logged `add-docstring` or `add-return-type` operation
+- roll back one compatible logged `add-docstring`, `add-return-type`, or `add-parameter-type` operation
 - emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
@@ -63,6 +64,21 @@ python -m surepython diff
 git status --short
 ```
 
+For a supported parameter annotation operation:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython scan <project-or-folder> --format json
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --dry-run
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --dry-run --format json
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db>
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db> --format json
+python -m surepython diff
+git status --short
+```
+
+SurePython validates the parameter annotation syntax and the selected parameter kind. It does not infer names or add imports automatically.
+
 SurePython validates annotation syntax. It does not guarantee that referenced names are imported or runtime-resolvable; Codex should rely on `--test` to expose that class of failure.
 
 For rollback:
@@ -79,6 +95,7 @@ python -m surepython rollback --id <operation_id> --db <database.db>
 Rollback must remain explicit. Codex should not turn a pytest failure into an automatic rollback unless a future SurePython phase implements and documents that behavior.
 
 When using `--id`, Codex should confirm that the selected operation belongs to the current project and should treat `OPERATION_NOT_FOUND`, `ROLLBACK_ALREADY_APPLIED`, `ROLLBACK_RECORD_NOT_ALLOWED`, and `PROJECT_MISMATCH` as hard refusals.
+`add-parameter-type` follows the same rollback contract, including byte-exact restoration and the refusal path for `legacy/unverifiable` records.
 
 ## Agent Safety Rules
 
@@ -98,6 +115,7 @@ When using SurePython, an agent must:
 - never move the public preview tag unless explicitly requested
 - never claim SurePython supports unsupported codemods
 - never infer a return annotation and attribute it to SurePython
+- never infer a parameter annotation and attribute it to SurePython
 - never assume syntactic annotation validity means pytest will pass
 
 ## Refusal Handling

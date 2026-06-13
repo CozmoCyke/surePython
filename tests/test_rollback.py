@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from surepython.cli import main
-from surepython.codemods import add_docstring
+from surepython.codemods import add_docstring, add_parameter_type
 from surepython.datasette_log import OperationRecord, insert_record, now_utc_iso
 from surepython.git_tools import GitError
 from surepython.rollback import rollback_by_id, rollback_last
@@ -177,6 +177,20 @@ def prepare_logged_add_docstring_bytes(
     commit_all(root, "apply docstring")
 
     return root, sample, db_path, original
+
+
+def prepare_logged_add_parameter_type(tmp_path: Path) -> tuple[Path, Path, Path]:
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text("def load_user(source):\n    return source\n", encoding="utf-8")
+    init_git_repo(root)
+    db_path = tmp_path / "surepython_lab.db"
+
+    add_parameter_type(sample, "load_user", "source", "str", project_root=root, db_path=db_path)
+    commit_all(root, "apply parameter annotation")
+
+    return root, sample, db_path
 
 
 def test_rollback_last_dry_run_shows_diff_without_writing(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -374,6 +388,37 @@ def test_rollback_by_id_applies_and_logs_source_operation_id(
         ("add-docstring", "applied", "SampleClass.sample_method"),
         ("rollback", "rolled_back", "SampleClass.sample_method"),
     ]
+
+
+def test_rollback_last_restores_parameter_annotation(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, sample, db_path = prepare_logged_add_parameter_type(tmp_path)
+
+    result = rollback_last(db_path)
+
+    assert result.status == "rolled_back"
+    assert result.source_operation == "add-parameter-type"
+    assert result.parameter == "source"
+    assert "source: str" not in sample.read_text(encoding="utf-8")
+    assert git_status_short(root) != ""
+
+
+def test_rollback_by_id_restores_parameter_annotation_and_blocks_second_rollback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, sample, db_path = prepare_logged_add_parameter_type(tmp_path)
+    operation_id = latest_operation_id(db_path)
+
+    result = rollback_by_id(db_path, operation_id, current_root=root)
+    assert result.status == "rolled_back"
+    assert result.parameter == "source"
+    commit_all(root, "restore parameter annotation")
+
+    with pytest.raises(GitError, match="already been rolled back"):
+        rollback_by_id(db_path, operation_id, current_root=root)
+
+    assert "source: str" not in sample.read_text(encoding="utf-8")
 
 
 def test_rollback_by_id_refuses_invalid_ids(tmp_path: Path, monkeypatch) -> None:

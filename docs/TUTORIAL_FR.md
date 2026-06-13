@@ -8,10 +8,11 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui deux micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui trois micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
+- ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
 
 SurePython ne devine jamais le type. Codex ou l'humain propose l'annotation ; SurePython la vérifie et l'insère exactement.
 
@@ -164,6 +165,34 @@ Contrat :
 
 SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
 
+## 4 ter. Ajouter une annotation de paramètre explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --dry-run
+.\.venv\Scripts\python.exe -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- le paramètre est fourni explicitement ;
+- l'annotation doit être syntaxiquement valide ;
+- une annotation existante est refusée ;
+- les paramètres variadiques `*args` et `**kwargs` sont refusés ;
+- aucun import n'est ajouté automatiquement ;
+- le corps de la fonction n'est pas modifié ;
+- le rollback reste explicite et vérifié par hash.
+
+Comme pour les retours de fonction, SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
+
 Les commandes `add-docstring`, `add-return-type` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
 
 ## 5. Consulter le diff
@@ -255,6 +284,7 @@ $env:TMP = "$PWD\.tmp"
 .\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run
 .\.venv\Scripts\python.exe -m surepython add-docstring tests\fixtures\sample_module.py --function SampleClass.sample_method --dry-run --format json
 .\.venv\Scripts\python.exe -m surepython add-return-type tests\fixtures\sample_module.py --function SampleClass.sample_method --annotation "str" --dry-run --format json
+.\.venv\Scripts\python.exe -m surepython add-parameter-type tests\fixtures\sample_module.py --function SampleClass.sample_method --parameter source --annotation "str" --dry-run --format json
 .\.venv\Scripts\python.exe -m surepython diff
 git status --short
 ```

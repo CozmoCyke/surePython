@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from surepython.cli import main
-from surepython.codemods import add_docstring, add_return_type
+from surepython.codemods import add_docstring, add_parameter_type, add_return_type
 from surepython.protocol import build_protocol_response, dump_json
 
 
@@ -153,6 +153,49 @@ def test_add_return_type_json_dry_run_is_structured_and_quiet(tmp_path: Path, mo
     assert git_status_short(root) == ""
 
 
+def test_add_parameter_type_json_dry_run_is_structured_and_quiet(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text("def load_user(source):\n    return source\n", encoding="utf-8")
+    init_git_repo(root)
+    before = sample.read_text(encoding="utf-8")
+
+    exit_code = main(
+        [
+            "add-parameter-type",
+            str(sample),
+            "--function",
+            "load_user",
+            "--parameter",
+            "source",
+            "--annotation",
+            "str",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["protocol_schema_version"] == "1.0"
+    assert payload["command"] == "add-parameter-type"
+    assert payload["ok"] is True
+    assert payload["status"] == "preview"
+    assert payload["result"]["annotation"] == "str"
+    assert payload["result"]["target"]["parameter"] == "source"
+    assert payload["result"]["written"] is False
+    assert payload["result"]["logged"] is False
+    assert payload["result"]["rollback_available"] is False
+    assert payload["result"]["operation_id"] is None
+    assert sample.read_text(encoding="utf-8") == before
+    assert git_status_short(root) == ""
+
+
 def test_rollback_json_dry_run_is_structured_and_byte_exact(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root = tmp_path / "project"
@@ -252,6 +295,57 @@ def test_add_return_type_json_application_includes_operation_id_and_tests(
     assert sample.read_text(encoding="utf-8").startswith("def load_user() -> str | None:")
     assert git_status_short(root) != ""
     assert read_rows(db_path)[0][0] == "add-return-type"
+
+
+def test_add_parameter_type_json_application_includes_operation_id_and_tests(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text("def load_user(source):\n    return source\n", encoding="utf-8")
+    tests_dir = root / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_smoke.py").write_text(
+        "from sample import load_user\n\n"
+        "def test_smoke():\n"
+        "    assert load_user('x') == 'x'\n",
+        encoding="utf-8",
+    )
+    init_git_repo(root)
+    db_path = tmp_path / "surepython.db"
+
+    exit_code = main(
+        [
+            "add-parameter-type",
+            str(sample),
+            "--function",
+            "load_user",
+            "--parameter",
+            "source",
+            "--annotation",
+            "str",
+            "--test",
+            "--db",
+            str(db_path),
+            "--format",
+            "json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["status"] == "tested"
+    assert payload["result"]["operation_id"] is not None
+    assert payload["result"]["logged"] is True
+    assert payload["result"]["rollback_available"] is True
+    assert payload["result"]["tests"]["status"] == "passed"
+    assert payload["result"]["tests"]["exit_code"] == 0
+    assert "def load_user(source: str):" in sample.read_text(encoding="utf-8")
+    assert git_status_short(root) != ""
+    assert read_rows(db_path)[0][0] == "add-parameter-type"
 
 
 def test_rollback_json_refuses_missing_selector(tmp_path: Path, monkeypatch, capsys) -> None:

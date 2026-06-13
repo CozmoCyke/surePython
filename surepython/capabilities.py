@@ -12,6 +12,8 @@ class OperationCapability:
     targets: list[str]
     required_arguments: list[str]
     optional_arguments: list[str]
+    supported_parameter_kinds: list[str]
+    unsupported_parameter_kinds: list[str]
     supports_dry_run: bool
     supports_tests: bool
     supports_logging: bool
@@ -41,6 +43,8 @@ OPERATIONS = [
         targets=["function", "method"],
         required_arguments=["file", "function"],
         optional_arguments=["dry-run", "test", "db", "format"],
+        supported_parameter_kinds=[],
+        unsupported_parameter_kinds=[],
         supports_dry_run=True,
         supports_tests=True,
         supports_logging=True,
@@ -70,6 +74,8 @@ OPERATIONS = [
         targets=["function", "method"],
         required_arguments=["file", "function", "annotation"],
         optional_arguments=["dry-run", "test", "db", "format"],
+        supported_parameter_kinds=[],
+        unsupported_parameter_kinds=[],
         supports_dry_run=True,
         supports_tests=True,
         supports_logging=True,
@@ -86,6 +92,43 @@ OPERATIONS = [
             "ANNOTATION_REQUIRED",
             "ANNOTATION_INVALID",
             "ANNOTATION_EXISTS",
+            "PARSE_ERROR",
+            "TESTS_FAILED",
+            "UNKNOWN_SQLITE_OPERATION",
+            "HASH_MISMATCH",
+            "LEGACY_UNVERIFIABLE",
+            "DATABASE_ERROR",
+            "INTERNAL_ERROR",
+        ],
+        status="experimental",
+    ),
+    OperationCapability(
+        name="add-parameter-type",
+        description="Add one explicit type annotation to one parameter on one function or method without an existing annotation.",
+        targets=["function", "method"],
+        required_arguments=["file", "function", "parameter", "annotation"],
+        optional_arguments=["dry-run", "test", "db", "format"],
+        supported_parameter_kinds=["positional-only", "positional-or-keyword", "keyword-only"],
+        unsupported_parameter_kinds=["var-positional", "var-keyword"],
+        supports_dry_run=True,
+        supports_tests=True,
+        supports_logging=True,
+        supports_rollback=True,
+        supported_formats=["text", "json"],
+        possible_error_codes=[
+            "GIT_NOT_REPOSITORY",
+            "GIT_DIRTY",
+            "FILE_NOT_FOUND",
+            "FILE_OUTSIDE_PROJECT",
+            "TARGET_NOT_FOUND",
+            "TARGET_AMBIGUOUS",
+            "TARGET_UNSUPPORTED",
+            "PARAMETER_REQUIRED",
+            "PARAMETER_NOT_FOUND",
+            "PARAMETER_ANNOTATION_EXISTS",
+            "PARAMETER_KIND_UNSUPPORTED",
+            "ANNOTATION_REQUIRED",
+            "ANNOTATION_INVALID",
             "PARSE_ERROR",
             "TESTS_FAILED",
             "UNKNOWN_SQLITE_OPERATION",

@@ -19,10 +19,11 @@ It is not a general refactoring engine. It currently supports one deliberately s
 """TODO: Document this function."""
 ```
 
-SurePython currently supports two deliberately narrow operations:
+SurePython currently supports three deliberately narrow operations:
 
 - add one skeleton docstring to one targeted Python function or method, only when the target has no existing docstring
 - add one explicit return annotation to one targeted Python function or method, only when the target has no existing return annotation
+- add one explicit annotation to one targeted Python parameter, only when that parameter has no existing annotation
 
 The working pipeline is:
 
@@ -107,6 +108,27 @@ SurePython never infers the annotation. Codex or a human proposes it; SurePython
 `add-return-type` validates syntax, not semantic availability. If an annotation references a name that the project cannot resolve at runtime, `--test` should expose that failure.
 
 ```powershell
+python -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --dry-run
+python -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --test --db .\surepython_lab.db
+python -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --dry-run --format json
+```
+
+`add-parameter-type` accepts:
+
+- `--function NAME`
+- `--function Class.method`
+- `--parameter NAME`
+- `--annotation "<type expression>"`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+SurePython never infers a parameter annotation. Codex or a human proposes it; SurePython validates and inserts it exactly.
+
+`add-parameter-type` supports positional-only, positional-or-keyword, and keyword-only parameters. It refuses variadic parameters (`*args` and `**kwargs`).
+
+```powershell
 python -m surepython diff
 ```
 
@@ -160,6 +182,11 @@ SurePython currently enforces these principles:
 - `add-return-type` does not infer types
 - `add-return-type` does not add imports
 - `add-return-type` does not modify parameters or function bodies
+- `add-parameter-type` refuses existing parameter annotations
+- `add-parameter-type` does not infer parameter types
+- `add-parameter-type` refuses variadic parameters
+- `add-parameter-type` does not add imports
+- `add-parameter-type` does not modify function bodies
 - rollback requires `--db`
 - rollback verifies `after_sha256` before reconstructing
 - rollback verifies `before_sha256` before writing
@@ -187,6 +214,7 @@ Current fields include:
 - `status`
 - `message`
 - `source_operation_id`
+- `parameter`
 
 Real operations with `--db` log automatically. Dry-runs and refusals do not create SQLite rows. `surepython log --db` remains a manual replay command for the last local operation state.
 
@@ -195,8 +223,8 @@ Real operations with `--db` log automatically. Dry-runs and refusals do not crea
 Rollback supports this narrow case:
 
 ```text
-latest compatible SQLite record
-operation in add-docstring/add-return-type
+latest compatible SQLite record or selected operation id
+operation in add-docstring/add-return-type/add-parameter-type
 status in applied/tested/failed
 current file hash = logged after_sha256
 restored bytes hash = logged before_sha256
@@ -222,6 +250,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 2.0: machine-readable capabilities and second proven operation, `add-return-type`
 - Phase 2.1: agent-safe structured JSON protocol
 - Phase 2.2: explicit rollback by operation id and self-hosting comparison
+- Phase 2.3: safe parameter annotation edits
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 

@@ -22,7 +22,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     assert payload["protocol_schema_version"] == "1.0"
     assert payload["capabilities_schema_version"] == "1.0"
     operations = {operation["name"]: operation for operation in payload["operations"]}
-    assert set(operations) == {"add-docstring", "add-return-type"}
+    assert set(operations) == {"add-docstring", "add-return-type", "add-parameter-type"}
     assert operations["add-docstring"]["supports_rollback"] is True
     assert operations["add-return-type"]["targets"] == ["function", "method"]
     assert operations["add-return-type"]["required_arguments"] == [
@@ -32,6 +32,16 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     ]
     assert "json" in operations["add-docstring"]["supported_formats"]
     assert "ANNOTATION_INVALID" in operations["add-return-type"]["possible_error_codes"]
+    assert operations["add-parameter-type"]["supported_parameter_kinds"] == [
+        "positional-only",
+        "positional-or-keyword",
+        "keyword-only",
+    ]
+    assert operations["add-parameter-type"]["unsupported_parameter_kinds"] == [
+        "var-positional",
+        "var-keyword",
+    ]
+    assert "PARAMETER_KIND_UNSUPPORTED" in operations["add-parameter-type"]["possible_error_codes"]
     commands = {command["name"]: command for command in payload["commands"]}
     assert set(commands) == {"rollback"}
     assert commands["rollback"]["selectors"] == ["last", "id"]
@@ -46,6 +56,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     output = capsys.readouterr().out
     assert "add-docstring" in output
     assert "add-return-type" in output
+    assert "add-parameter-type" in output
     assert "rollback" in output
 
 

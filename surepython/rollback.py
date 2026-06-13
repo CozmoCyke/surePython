@@ -26,6 +26,7 @@ class RollbackResult:
     project_root: Path
     file_path: Path
     symbol: str
+    parameter: str | None
     dry_run: bool
     selector_type: str
     selector_value: int | str
@@ -229,6 +230,89 @@ class _ReturnTypeRemover(cst.CSTTransformer):
         return updated_node.with_changes(returns=None)
 
 
+class _ParameterTypeRemover(cst.CSTTransformer):
+    def __init__(self, target_qname: str, parameter_name: str) -> None:
+        self.target_qname = target_qname
+        self.parameter_name = parameter_name
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.matched = False
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        self.scope.pop()
+        return updated_node
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        self.function_stack.append(qname == self.target_qname)
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+
+        params = updated_node.params
+        replaced = False
+
+        def update_params(values: tuple[cst.Param, ...]) -> tuple[cst.Param, ...]:
+            nonlocal replaced
+            updated_values = []
+            for param in values:
+                if param.name.value != self.parameter_name:
+                    updated_values.append(param)
+                    continue
+                if param.annotation is None:
+                    raise GitError(
+                        "Target parameter does not contain an annotation",
+                        code="LEGACY_UNVERIFIABLE",
+                    )
+                replaced = True
+                updated_values.append(param.with_changes(annotation=None))
+            return tuple(updated_values)
+
+        posonly_params = update_params(tuple(params.posonly_params))
+        regular_params = update_params(tuple(params.params))
+        kwonly_params = update_params(tuple(params.kwonly_params))
+
+        if params.star_arg is not cst.MaybeSentinel.DEFAULT and params.star_arg is not None:
+            star_arg = params.star_arg
+            if isinstance(star_arg, cst.Param) and star_arg.name.value == self.parameter_name:
+                raise GitError(
+                    "Variadic positional parameters are not supported",
+                    code="PARAMETER_KIND_UNSUPPORTED",
+                    details={"parameter": self.parameter_name, "kind": "var-positional"},
+                )
+        if params.star_kwarg is not None and params.star_kwarg.name.value == self.parameter_name:
+            raise GitError(
+                "Variadic keyword parameters are not supported",
+                code="PARAMETER_KIND_UNSUPPORTED",
+                details={"parameter": self.parameter_name, "kind": "var-keyword"},
+            )
+
+        if not replaced:
+            raise GitError(
+                "Target parameter not found",
+                code="PARAMETER_NOT_FOUND",
+                details={"parameter": self.parameter_name},
+            )
+
+        self.matched = True
+        return updated_node.with_changes(
+            params=updated_node.params.with_changes(
+                posonly_params=posonly_params,
+                params=regular_params,
+                kwonly_params=kwonly_params,
+            )
+        )
+
+
 def _require_record_fields(record: OperationRecord) -> None:
     missing = [
         name
@@ -240,7 +324,12 @@ def _require_record_fields(record: OperationRecord) -> None:
             f"Operation is missing rollback data: {', '.join(missing)}",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type"}:
+    if record.operation == "add-parameter-type" and not record.parameter:
+        raise GitError(
+            "Operation is missing rollback data: parameter",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation not in {"add-docstring", "add-return-type", "add-parameter-type"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -265,12 +354,6 @@ def _prepare_rollback_record(
         raise GitError("Rollback records cannot be rolled back again", code="ROLLBACK_RECORD_NOT_ALLOWED")
 
     _require_record_fields(record)
-    if record.operation not in {"add-docstring", "add-return-type"}:
-        raise GitError(
-            f"Operation is not rollback-compatible: {record.operation}",
-            code="UNKNOWN_SQLITE_OPERATION",
-        )
-
     file_path = Path(record.file_path).resolve()
     if not file_path.exists():
         raise GitError("Rollback target file does not exist", code="FILE_NOT_FOUND")
@@ -301,9 +384,12 @@ def _prepare_rollback_record(
     if record.operation == "add-docstring":
         remover = _DocstringRemover(record.symbol or "")
         operation_label = "add-docstring"
-    else:
+    elif record.operation == "add-return-type":
         remover = _ReturnTypeRemover(record.symbol or "")
         operation_label = "add-return-type"
+    else:
+        remover = _ParameterTypeRemover(record.symbol or "", record.parameter or "")
+        operation_label = "add-parameter-type"
     updated_module = module.visit(remover)
     if not remover.matched:
         raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
@@ -340,6 +426,7 @@ def _prepare_rollback_record(
             file_path=str(file_path),
             operation="rollback",
             symbol=record.symbol,
+            parameter=record.parameter,
             before_sha256=current_sha,
             after_sha256=restored_sha,
             git_diff=preview_diff_text,
@@ -360,6 +447,7 @@ def _prepare_rollback_record(
                 file_path=rollback_record.file_path,
                 operation=rollback_record.operation,
                 symbol=rollback_record.symbol,
+                parameter=rollback_record.parameter,
                 before_sha256=rollback_record.before_sha256,
                 after_sha256=rollback_record.after_sha256,
                 git_diff=rollback_record.git_diff,
@@ -388,6 +476,7 @@ def _prepare_rollback_record(
         source_operation=record.operation or "",
         source_operation_id=record.operation_id,
         rollback_operation_id=rollback_operation_id,
+        parameter=record.parameter,
         written=not dry_run,
         logged=rollback_operation_id is not None,
         bytes_equal=bytes_equal,

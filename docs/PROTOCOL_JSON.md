@@ -12,6 +12,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `capabilities`
 - `add-docstring`
 - `add-return-type`
+- `add-parameter-type`
 - `rollback`
 
 ## General Response Shape
@@ -66,6 +67,10 @@ Common codes include:
 - `ANNOTATION_REQUIRED`
 - `ANNOTATION_INVALID`
 - `ANNOTATION_EXISTS`
+- `PARAMETER_REQUIRED`
+- `PARAMETER_NOT_FOUND`
+- `PARAMETER_ANNOTATION_EXISTS`
+- `PARAMETER_KIND_UNSUPPORTED`
 - `UNSUPPORTED_OPERATION`
 - `UNKNOWN_SQLITE_OPERATION`
 - `HASH_MISMATCH`
@@ -130,6 +135,8 @@ Each command declares:
 - `mutually_exclusive_selectors`
 - `supported_formats`
 - `possible_error_codes`
+- `supported_parameter_kinds`
+- `unsupported_parameter_kinds`
 - `status`
 
 ## Logging And Rollback
@@ -138,6 +145,7 @@ Each command declares:
 - Dry-runs return `operation_id: null`
 - Rollback responses expose both the source operation and the rollback log id
 - Rollback responses also expose a `selector` object with `type` and `value`
+- Parameter annotation responses expose the selected `parameter` name in `target`
 - `legacy/unverifiable` records are refused without writing
 
 ## Text Compatibility

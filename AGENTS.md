@@ -14,10 +14,12 @@ When the intended change matches a supported SurePython operation:
 6. Do not replace this operation with a direct manual edit.
 7. Never bypass a SurePython refusal.
 
+Supported write operations currently include add-docstring, add-return-type, and add-parameter-type.
+
 When no supported operation matches:
 
 1. State that the change is outside the current capability set.
 2. Use normal Codex editing.
-3. Record the fallback and its reason in the Phase 2.2 report.
+3. Record the fallback and its reason in the relevant phase report.
 
 Never claim that a direct edit was secured by SurePython.

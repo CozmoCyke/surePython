@@ -27,6 +27,7 @@ class OperationRecord:
     pytest_status: str | None
     status: str
     message: str | None
+    parameter: str | None = None
     operation_id: int | None = None
     source_operation_id: int | None = None
 
@@ -65,6 +66,7 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             file_path TEXT NOT NULL,
             operation TEXT NOT NULL,
             symbol TEXT,
+            parameter TEXT,
             before_sha256 TEXT,
             after_sha256 TEXT,
             git_diff TEXT,
@@ -84,6 +86,9 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
     }
     if "source_operation_id" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN source_operation_id INTEGER")
+        connection.commit()
+    if "parameter" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN parameter TEXT")
         connection.commit()
 
     connection.execute(
@@ -119,6 +124,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 file_path,
                 operation,
                 symbol,
+                parameter,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -128,7 +134,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 status,
                 message,
                 source_operation_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -136,6 +142,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.file_path,
                 record.operation,
                 record.symbol,
+                record.parameter,
                 record.before_sha256,
                 record.after_sha256,
                 record.git_diff,
@@ -169,6 +176,7 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 file_path,
                 operation,
                 symbol,
+                parameter,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -198,15 +206,16 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         file_path=row[3],
         operation=row[4],
         symbol=row[5],
-        before_sha256=row[6],
-        after_sha256=row[7],
-        git_diff=row[8],
-        pytest_command=row[9],
-        pytest_exit_code=row[10],
-        pytest_status=row[11],
-        status=row[12],
-        message=row[13],
-        source_operation_id=row[14],
+        parameter=row[6],
+        before_sha256=row[7],
+        after_sha256=row[8],
+        git_diff=row[9],
+        pytest_command=row[10],
+        pytest_exit_code=row[11],
+        pytest_status=row[12],
+        status=row[13],
+        message=row[14],
+        source_operation_id=row[15],
     )
 
 
@@ -233,6 +242,7 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 file_path,
                 operation,
                 symbol,
+                parameter,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -260,15 +270,16 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         file_path=row[3],
         operation=row[4],
         symbol=row[5],
-        before_sha256=row[6],
-        after_sha256=row[7],
-        git_diff=row[8],
-        pytest_command=row[9],
-        pytest_exit_code=row[10],
-        pytest_status=row[11],
-        status=row[12],
-        message=row[13],
-        source_operation_id=row[14],
+        parameter=row[6],
+        before_sha256=row[7],
+        after_sha256=row[8],
+        git_diff=row[9],
+        pytest_command=row[10],
+        pytest_exit_code=row[11],
+        pytest_status=row[12],
+        status=row[13],
+        message=row[14],
+        source_operation_id=row[15],
     )
 
 
@@ -288,6 +299,7 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 file_path,
                 operation,
                 symbol,
+                parameter,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -318,13 +330,14 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
         file_path=row[3],
         operation=row[4],
         symbol=row[5],
-        before_sha256=row[6],
-        after_sha256=row[7],
-        git_diff=row[8],
-        pytest_command=row[9],
-        pytest_exit_code=row[10],
-        pytest_status=row[11],
-        status=row[12],
-        message=row[13],
-        source_operation_id=row[14],
+        parameter=row[6],
+        before_sha256=row[7],
+        after_sha256=row[8],
+        git_diff=row[9],
+        pytest_command=row[10],
+        pytest_exit_code=row[11],
+        pytest_status=row[12],
+        status=row[13],
+        message=row[14],
+        source_operation_id=row[15],
     )

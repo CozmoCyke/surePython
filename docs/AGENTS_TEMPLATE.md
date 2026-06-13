@@ -15,6 +15,7 @@ Current supported operation:
 
 - add one skeleton docstring to one Python function or method that has no existing docstring
 - add one explicit return annotation to one Python function or method that has no existing return annotation
+- add one explicit parameter annotation to one Python function or method that has no existing parameter annotation
 
 Current supported rollback:
 
@@ -48,6 +49,13 @@ python -m surepython add-return-type <file.py> --function <symbol> --annotation 
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run --format json
 ```
 
+For a parameter annotation dry-run:
+
+```powershell
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --dry-run
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --dry-run --format json
+```
+
 For a real operation:
 
 ```powershell
@@ -55,6 +63,8 @@ python -m surepython add-docstring <file.py> --function <symbol> --test --db <da
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db> --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db> --format json
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db>
+python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -81,8 +91,10 @@ git status --short
 - Do not replace an existing docstring.
 - Do not replace an existing return annotation.
 - Do not infer return annotations.
+- Do not infer parameter annotations.
 - Do not add imports automatically.
 - Do not broaden `Class.method` into a global function edit.
+- Do not broaden a parameter edit beyond the explicitly named parameter.
 - Do not run rollback without `--db`.
 - Do not run real rollback before rollback `--dry-run`.
 - Do not pass `--last` and `--id` together.
