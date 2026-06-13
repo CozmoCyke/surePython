@@ -5,10 +5,15 @@ Ce tutoriel montre le parcours SurePython actuel de bout en bout.
 Objectif :
 
 ```text
-scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
+capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il ne sécurise aujourd'hui qu'une micro-modification : ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring.
+SurePython reste volontairement petit. Il sécurise aujourd'hui deux micro-modifications :
+
+- ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
+- ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
+
+SurePython ne devine jamais le type. Codex ou l'humain propose l'annotation ; SurePython la vérifie et l'insère exactement.
 
 ## 1. Préparer l'environnement
 
@@ -47,6 +52,14 @@ $env:TMP = "$PWD\.tmp"
 Si la `.venv` locale est cassée ou pointe vers un interpréteur supprimé, voir [dépannage Windows](WINDOWS_TROUBLESHOOTING.md).
 
 ## 2. Scanner le projet
+
+Avant de demander une opération à SurePython, Codex doit pouvoir interroger les capacités réelles :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython capabilities --format json
+```
+
+Cette sortie est le contrat machine-readable. Elle évite à Codex de deviner les opérations disponibles.
 
 Sortie texte humaine :
 
@@ -121,6 +134,31 @@ Effets attendus :
 - l'opération est enregistrée dans SQLite
 
 Si pytest échoue, SurePython retourne un code d'erreur. La modification reste appliquée ; il n'y a pas de rollback automatique implicite.
+
+## 4 bis. Ajouter une annotation de retour explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --dry-run
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --test --db .\surepython_lab.db
+```
+
+Contrat :
+
+- l'annotation est fournie explicitement ;
+- l'annotation doit être syntaxiquement valide ;
+- une annotation existante est refusée ;
+- aucun import n'est ajouté automatiquement ;
+- le corps de la fonction n'est pas modifié ;
+- le rollback reste explicite et vérifié par hash.
+
+SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
 
 ## 5. Consulter le diff
 
@@ -215,6 +253,7 @@ Ce parcours prouve que SurePython sait actuellement :
 - cartographier les symboles Python
 - prévisualiser une micro-modification
 - ajouter une docstring squelette à un symbole précis
+- ajouter une annotation de retour explicite à un symbole précis
 - lancer pytest après une vraie modification
 - journaliser dans SQLite
 - restaurer une opération cohérente sans approximation

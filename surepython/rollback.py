@@ -12,7 +12,7 @@ from .datasette_log import (
     OperationRecord,
     insert_record,
     now_utc_iso,
-    read_last_add_docstring_operation,
+    read_last_supported_operation,
     write_last_operation,
 )
 from .git_tools import GitError, ensure_clean_git_repo, is_within_root, sha256_file
@@ -179,6 +179,38 @@ class _DocstringRemover(cst.CSTTransformer):
         )
 
 
+class _ReturnTypeRemover(cst.CSTTransformer):
+    def __init__(self, target_qname: str) -> None:
+        self.target_qname = target_qname
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.matched = False
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        self.scope.pop()
+        return updated_node
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        self.function_stack.append(qname == self.target_qname)
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+        if updated_node.returns is None:
+            raise GitError("Target does not contain a return annotation")
+        self.matched = True
+        return updated_node.with_changes(returns=None)
+
+
 def _require_record_fields(record: OperationRecord) -> None:
     missing = [
         name
@@ -187,8 +219,8 @@ def _require_record_fields(record: OperationRecord) -> None:
     ]
     if missing:
         raise GitError(f"Operation is missing rollback data: {', '.join(missing)}")
-    if record.operation != "add-docstring":
-        raise GitError("Only add-docstring rollback is supported")
+    if record.operation not in {"add-docstring", "add-return-type"}:
+        raise GitError(f"Operation is not rollback-compatible: {record.operation}")
     if record.status not in {"applied", "tested", "failed"}:
         raise GitError(f"Operation status is not rollback-compatible: {record.status}")
 
@@ -197,7 +229,7 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     if db_path is None:
         raise GitError("Rollback requires --db")
 
-    record = read_last_add_docstring_operation(db_path)
+    record = read_last_supported_operation(db_path)
     _require_record_fields(record)
 
     file_path = Path(record.file_path).resolve()
@@ -216,7 +248,14 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     source_bytes = file_path.read_bytes()
     source, bom, encoding = _decode_python_bytes(source_bytes)
     module = cst.parse_module(source)
-    remover = _DocstringRemover(record.symbol or "")
+    if record.operation == "add-docstring":
+        remover = _DocstringRemover(record.symbol or "")
+        operation_label = "add-docstring"
+    elif record.operation == "add-return-type":
+        remover = _ReturnTypeRemover(record.symbol or "")
+        operation_label = "add-return-type"
+    else:  # pragma: no cover - protected by _require_record_fields
+        raise GitError(f"Operation is not rollback-compatible: {record.operation}")
     updated_module = module.visit(remover)
     if not remover.matched:
         raise GitError("Rollback target symbol was not modified")
@@ -235,12 +274,12 @@ def rollback_last(db_path: Path, *, dry_run: bool = False) -> RollbackResult:
     if dry_run:
         restored_sha = current_sha
         status = "planned"
-        message = "Planned rollback of add-docstring operation."
+        message = f"Planned rollback of {operation_label} operation."
     else:
         restored_sha = candidate_sha
         file_path.write_bytes(restored_bytes)
         status = "rolled_back"
-        message = "Rolled back add-docstring operation."
+        message = f"Rolled back {operation_label} operation."
         rollback_record = OperationRecord(
             created_at=now_utc_iso(),
             project_path=str(context.root),

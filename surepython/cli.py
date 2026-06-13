@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 import sys
 
-from .codemods import add_docstring
+from .capabilities import serialize_capabilities
+from .codemods import add_docstring, add_return_type
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
 from .rollback import rollback_last
@@ -80,6 +81,15 @@ def _cmd_scan(path: Path, output_format: str) -> int:
     return 0
 
 
+def _cmd_capabilities(output_format: str) -> int:
+    try:
+        print(serialize_capabilities(output_format))
+    except ValueError as exc:
+        _print_error(str(exc))
+        return 1
+    return 0
+
+
 def _cmd_add_docstring(
     file_path: Path,
     function: str,
@@ -120,6 +130,71 @@ def _cmd_add_docstring(
     else:
         print("Applied:")
         print("  Added skeleton docstring.")
+        print("Diff:")
+        if result.git_stat.strip():
+            print(result.git_stat.rstrip())
+        if result.git_diff_text.strip():
+            print(result.git_diff_text.rstrip())
+    if result.pytest_command:
+        print("Test:")
+        print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
+    if result.db_path is not None:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
+    print("Next:")
+    print("  Run:")
+    print("    surepython diff")
+    print("    surepython log --db <path>")
+    if result.pytest_exit_code not in (None, 0):
+        return 1
+    return 0
+
+
+def _cmd_add_return_type(
+    file_path: Path,
+    function: str,
+    annotation: str,
+    test: bool,
+    test_command: str | None,
+    dry_run: bool,
+    db: Path | None,
+) -> int:
+    try:
+        result = add_return_type(
+            file_path,
+            function,
+            annotation,
+            project_root=file_path.parent,
+            db_path=db,
+            run_tests=test,
+            test_command=test_command,
+            dry_run=dry_run,
+        )
+    except GitError as exc:
+        _print_error(str(exc))
+        return 1
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {result.project_root}")
+    print("Operation:\n  add-return-type")
+    print(f"Target:\n  {result.file_path.name}::{result.symbol}")
+    print(f"Annotation:\n  {result.annotation}")
+    print("Safety:")
+    print("  Git repository: OK")
+    print("  Git clean: OK")
+    print("  File inside project: OK")
+    print("  LibCST parse: OK")
+    if dry_run:
+        print("Mode:")
+        print("  Dry run; no files changed.")
+        print("Preview diff:")
+        if result.preview_diff_text:
+            print(result.preview_diff_text.rstrip())
+    else:
+        print("Applied:")
+        print("  Added return annotation.")
         print("Diff:")
         if result.git_stat.strip():
             print(result.git_stat.rstrip())
@@ -200,6 +275,9 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("path", type=Path)
     scan_parser.add_argument("--format", choices=["text", "json", "csv"], default="text")
 
+    capabilities_parser = subparsers.add_parser("capabilities", help="Show supported operations")
+    capabilities_parser.add_argument("--format", choices=["text", "json"], default="text")
+
     add_parser = subparsers.add_parser("add-docstring", help="Add a skeleton docstring")
     add_parser.add_argument("file_path", type=Path)
     add_parser.add_argument("--function", required=True)
@@ -207,6 +285,15 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--test-command")
     add_parser.add_argument("--dry-run", action="store_true")
     add_parser.add_argument("--db", type=Path)
+
+    return_parser = subparsers.add_parser("add-return-type", help="Add an explicit return annotation")
+    return_parser.add_argument("file_path", type=Path)
+    return_parser.add_argument("--function", required=True)
+    return_parser.add_argument("--annotation", required=True)
+    return_parser.add_argument("--test", action="store_true")
+    return_parser.add_argument("--test-command")
+    return_parser.add_argument("--dry-run", action="store_true")
+    return_parser.add_argument("--db", type=Path)
 
     subparsers.add_parser("diff", help="Show git diff")
 
@@ -227,8 +314,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "scan":
         return _cmd_scan(args.path, args.format)
+    if args.command == "capabilities":
+        return _cmd_capabilities(args.format)
     if args.command == "add-docstring":
         return _cmd_add_docstring(args.file_path, args.function, args.test, args.test_command, args.dry_run, args.db)
+    if args.command == "add-return-type":
+        return _cmd_add_return_type(
+            args.file_path,
+            args.function,
+            args.annotation,
+            args.test,
+            args.test_command,
+            args.dry_run,
+            args.db,
+        )
     if args.command == "diff":
         return _cmd_diff()
     if args.command == "log":

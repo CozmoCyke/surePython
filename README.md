@@ -19,12 +19,15 @@ It is not a general refactoring engine. It currently supports one deliberately s
 """TODO: Document this function."""
 ```
 
-That skeleton docstring can be added to one targeted Python function or method, only when the target has no existing docstring.
+SurePython currently supports two deliberately narrow operations:
+
+- add one skeleton docstring to one targeted Python function or method, only when the target has no existing docstring
+- add one explicit return annotation to one targeted Python function or method, only when the target has no existing return annotation
 
 The working pipeline is:
 
 ```text
-scan -> dry-run -> add-docstring -> pytest -> SQLite log -> rollback
+capabilities -> scan -> dry-run -> supported operation -> pytest -> SQLite log -> rollback
 ```
 
 This small scope is intentional. SurePython is designed to refuse when it cannot prove the operation.
@@ -42,6 +45,13 @@ SurePython separates reasoning from execution:
 A refusal is not a failure of the tool. A refusal protects the project.
 
 ## Commands
+
+```powershell
+python -m surepython capabilities
+python -m surepython capabilities --format json
+```
+
+`capabilities --format json` is the machine-readable contract for Codex and other agents. It lists only operations that SurePython actually supports.
 
 ```powershell
 python -m surepython scan tests\fixtures
@@ -74,6 +84,25 @@ python -m surepython add-docstring tests\fixtures\sample_module.py --function Sa
 - `--test`
 - `--test-command "<command>"`
 - `--db <sqlite-path>`
+
+```powershell
+python -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --dry-run
+python -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --test --db .\surepython_lab.db
+```
+
+`add-return-type` accepts:
+
+- `--function NAME`
+- `--function Class.method`
+- `--annotation "<type expression>"`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+SurePython never infers the annotation. Codex or a human proposes it; SurePython validates and inserts it exactly.
+
+`add-return-type` validates syntax, not semantic availability. If an annotation references a name that the project cannot resolve at runtime, `--test` should expose that failure.
 
 ```powershell
 python -m surepython diff
@@ -109,6 +138,10 @@ SurePython currently enforces these principles:
 - `--dry-run` does not write the target file
 - `--dry-run` does not run pytest
 - `--test` runs after a real edit and returns an error when pytest fails
+- `add-return-type` refuses existing return annotations
+- `add-return-type` does not infer types
+- `add-return-type` does not add imports
+- `add-return-type` does not modify parameters or function bodies
 - rollback requires `--db`
 - rollback verifies `after_sha256` before reconstructing
 - rollback verifies `before_sha256` before writing
@@ -144,7 +177,7 @@ Rollback supports this narrow case:
 
 ```text
 latest compatible SQLite record
-operation = add-docstring
+operation in add-docstring/add-return-type
 status in applied/tested/failed
 current file hash = logged after_sha256
 restored bytes hash = logged before_sha256
@@ -165,6 +198,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 1.6: automatic SQLite logging for `add-docstring`
 - Phase 1.7: explicit rollback for logged `add-docstring` operations
 - Phase 1.8: product documentation and agent usage policy
+- Phase 2.0: machine-readable capabilities and second proven operation, `add-return-type`
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 
@@ -195,6 +229,8 @@ SurePython does not yet provide:
 - general Python rewriting
 - arbitrary codemods
 - multi-file edits
+- automatic type inference
+- import insertion for annotations
 - interactive rollback selection
 - rollback by date range
 - Git-based restoration

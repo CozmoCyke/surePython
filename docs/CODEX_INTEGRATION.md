@@ -23,9 +23,11 @@ Codex may:
 
 SurePython may:
 
+- report machine-readable capabilities
 - scan Python symbols
 - preview a supported micro-change
 - add one skeleton docstring to one function or method
+- add one explicit return annotation to one function or method
 - run pytest after a real edit
 - record the operation in SQLite
 - roll back one compatible logged `add-docstring` operation
@@ -37,12 +39,26 @@ SurePython must not be described as a general-purpose coding agent. It is a narr
 For a supported docstring operation, Codex should prefer:
 
 ```powershell
+python -m surepython capabilities --format json
 python -m surepython scan <project-or-folder> --format json
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db>
 python -m surepython diff
 git status --short
 ```
+
+For a supported return annotation operation:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython scan <project-or-folder> --format json
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
+python -m surepython diff
+git status --short
+```
+
+SurePython validates annotation syntax. It does not guarantee that referenced names are imported or runtime-resolvable; Codex should rely on `--test` to expose that class of failure.
 
 For rollback:
 
@@ -58,6 +74,7 @@ Rollback must remain explicit. Codex should not turn a pytest failure into an au
 When using SurePython, an agent must:
 
 - inspect before changing
+- run `capabilities --format json` before selecting a SurePython operation
 - prefer `scan --format json` when structured context is useful
 - run `--dry-run` before a real operation
 - keep one operation to one file and one symbol
@@ -67,6 +84,8 @@ When using SurePython, an agent must:
 - never edit SQLite records to make rollback succeed
 - never move the public preview tag unless explicitly requested
 - never claim SurePython supports unsupported codemods
+- never infer a return annotation and attribute it to SurePython
+- never assume syntactic annotation validity means pytest will pass
 
 ## Refusal Handling
 
@@ -110,6 +129,9 @@ Codex must not infer that SurePython can:
 
 - edit arbitrary code
 - add arbitrary docstrings
+- infer return types
+- add imports for annotations
+- replace existing return annotations
 - replace existing docstrings
 - modify multiple files
 - roll back non-SurePython changes

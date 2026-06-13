@@ -46,6 +46,25 @@ class AddDocstringResult:
     message: str
 
 
+@dataclass(frozen=True)
+class AddReturnTypeResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    annotation: str
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+
+
 def _has_docstring(node: ast.AST) -> bool:
     return ast.get_docstring(node) is not None
 
@@ -71,7 +90,11 @@ def _find_target_node(module: ast.Module, target_qname: str) -> ast.AST | None:
 
 def _resolve_target(records, target: str) -> str:
     if "." in target:
-        matches = [record for record in records if record.qualified_name == target]
+        matches = [
+            record
+            for record in records
+            if record.qualified_name == target and record.type in {"function", "method"}
+        ]
     else:
         matches = [
             record
@@ -84,6 +107,27 @@ def _resolve_target(records, target: str) -> str:
     if len(matches) > 1:
         raise GitError("Target symbol is ambiguous")
     return matches[0].qualified_name
+
+
+def _decode_python_bytes(data: bytes) -> tuple[str, bytes, str]:
+    if data.startswith(b"\xef\xbb\xbf"):
+        return data[3:].decode("utf-8"), b"\xef\xbb\xbf", "utf-8"
+    return data.decode("utf-8"), b"", "utf-8"
+
+
+def _encode_python_text(text: str, bom: bytes, encoding: str) -> bytes:
+    return bom + text.encode(encoding)
+
+
+def _validate_return_annotation(annotation: str) -> cst.BaseExpression:
+    if not annotation.strip():
+        raise GitError("Return annotation is empty")
+    try:
+        expression = cst.parse_expression(annotation)
+        ast.parse(f"def _surepython_probe() -> {annotation}:\n    pass\n")
+    except Exception as exc:
+        raise GitError(f"Return annotation is invalid: {annotation}") from exc
+    return expression
 
 
 def run_pytest(cwd: Path, command: str | None = None) -> tuple[int, str]:
@@ -201,6 +245,43 @@ class _DocstringInserter(cst.CSTTransformer):
             body=(docstring_line, *updated_node.body.body)
         )
         return updated_node.with_changes(body=body)
+
+
+class _ReturnTypeInserter(cst.CSTTransformer):
+    def __init__(self, target_qname: str, annotation: str) -> None:
+        self.target_qname = target_qname
+        self.annotation = annotation
+        self.annotation_expression = _validate_return_annotation(annotation)
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.matched = False
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        self.scope.pop()
+        return updated_node
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        is_target = qname == self.target_qname
+        self.function_stack.append(is_target)
+        if is_target and node.returns is not None:
+            raise GitError("Target already has a return annotation")
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+        self.matched = True
+        return updated_node.with_changes(
+            returns=cst.Annotation(annotation=self.annotation_expression)
+        )
 
 
 def add_docstring(
@@ -369,6 +450,196 @@ def add_docstring(
         project_root=context.root,
         db_path=db_path,
         symbol=target_qname,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+    )
+
+
+def add_return_type(
+    file_path: Path,
+    target: str,
+    annotation: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> AddReturnTypeResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist")
+
+    annotation_expression = _validate_return_annotation(annotation)
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root")
+
+    records = scan_file(file_path)
+    target_qname = _resolve_target(records, target)
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-return-type",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+        )
+        raise GitError(f"LibCST parse failed: {exc}") from exc
+
+    module = ast.parse(source, filename=str(file_path))
+    node = _find_target_node(module, target_qname)
+    if node is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-return-type",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target symbol not found",
+        )
+        raise GitError("Target symbol not found")
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        raise GitError("Target is not a function or method")
+    if node.returns is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-return-type",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target already has a return annotation",
+        )
+        raise GitError("Target already has a return annotation")
+
+    cst_module = cst.parse_module(source)
+    transformer = _ReturnTypeInserter(target_qname, annotation)
+    transformer.annotation_expression = annotation_expression
+    updated_module = cst_module.visit(transformer)
+    if not transformer.matched:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-return-type",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target symbol not found",
+        )
+        raise GitError("Target symbol not found")
+
+    updated_source = updated_module.code
+    updated_bytes = _encode_python_text(updated_source, bom, encoding)
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = (
+        f"Planned return annotation: {annotation}."
+        if dry_run
+        else f"Added return annotation: {annotation}."
+    )
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    if not dry_run:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-return-type",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="add-return-type",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+
+    return AddReturnTypeResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=target_qname,
+        annotation=annotation,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         preview_diff_text=preview_diff_text if dry_run else None,

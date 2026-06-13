@@ -14,25 +14,39 @@ SurePython may execute only the transformations it explicitly supports.
 Current supported operation:
 
 - add one skeleton docstring to one Python function or method that has no existing docstring
+- add one explicit return annotation to one Python function or method that has no existing return annotation
 
 Current supported rollback:
 
-- rollback the latest compatible SQLite-logged `add-docstring` operation
+- rollback the latest compatible SQLite-logged `add-docstring` or `add-return-type` operation
 
 ## Mandatory Workflow
 
 Before a SurePython modification:
 
 ```powershell
+python -m surepython capabilities --format json
 python -m surepython scan <path> --format json
-python -m surepython add-docstring <file.py> --function <symbol> --dry-run
 git status --short
+```
+
+For a docstring dry-run:
+
+```powershell
+python -m surepython add-docstring <file.py> --function <symbol> --dry-run
+```
+
+For a return annotation dry-run:
+
+```powershell
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run
 ```
 
 For a real operation:
 
 ```powershell
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db>
+python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
 python -m surepython diff
 git status --short
 ```
@@ -53,6 +67,9 @@ git status --short
 - Do not modify more than one file per SurePython operation.
 - Do not target more than one symbol per SurePython operation.
 - Do not replace an existing docstring.
+- Do not replace an existing return annotation.
+- Do not infer return annotations.
+- Do not add imports automatically.
 - Do not broaden `Class.method` into a global function edit.
 - Do not run rollback without `--db`.
 - Do not run real rollback before rollback `--dry-run`.

@@ -120,7 +120,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> None:
         connection.close()
 
 
-def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
+def read_last_supported_operation(db_path: Path) -> OperationRecord:
     if not db_path.exists():
         raise FileNotFoundError(f"Database does not exist: {db_path}")
 
@@ -144,7 +144,7 @@ def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
                 status,
                 message
             FROM surepython_operations
-            WHERE operation = 'add-docstring'
+            WHERE operation IN ('add-docstring', 'add-return-type')
               AND status IN ('applied', 'tested', 'failed')
             ORDER BY id DESC
             LIMIT 1
@@ -154,7 +154,7 @@ def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
         connection.close()
 
     if row is None:
-        raise FileNotFoundError("No applicable add-docstring operation found")
+        raise FileNotFoundError("No applicable operation found")
 
     return OperationRecord(
         created_at=row[0],
@@ -171,3 +171,10 @@ def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
         status=row[11],
         message=row[12],
     )
+
+
+def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
+    record = read_last_supported_operation(db_path)
+    if record.operation != "add-docstring":
+        raise FileNotFoundError("No applicable add-docstring operation found")
+    return record

@@ -35,7 +35,7 @@ def _record_from_node(file_path: Path, node_type: str, name: str, qualified_name
 
 
 def scan_file(file_path: Path) -> list[SymbolRecord]:
-    source = file_path.read_text(encoding="utf-8")
+    source = file_path.read_text(encoding="utf-8-sig")
     module = ast.parse(source, filename=str(file_path))
     records: list[SymbolRecord] = []
 
