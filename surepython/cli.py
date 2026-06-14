@@ -8,7 +8,14 @@ from pathlib import Path
 import sys
 
 from .capabilities import serialize_capabilities
-from .codemods import add_decorator, add_docstring, add_import, add_parameter_type, add_return_type
+from .codemods import (
+    add_decorator,
+    add_docstring,
+    add_import,
+    add_parameter_type,
+    add_return_type,
+    remove_return_type,
+)
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
 from .protocol import (
@@ -57,6 +64,8 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
         target = {"file": result.file_path.name, "symbol": result.symbol}
         if result.parameter is not None:
             target["parameter"] = result.parameter
+        if result.return_annotation is not None:
+            target["return_annotation"] = result.return_annotation
         payload = {
             "operation": "rollback",
             "selector": {
@@ -76,6 +85,8 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
             "restored_sha256": result.after_sha256,
             "diff": result.preview_diff_text,
         }
+        if result.return_annotation is not None:
+            payload["return_annotation"] = result.return_annotation
         if output_format == "json":
             return payload
         return payload
@@ -92,6 +103,9 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
         "after_sha256": result.after_sha256,
     }
     if command == "add-return-type":
+        payload["annotation"] = result.annotation
+    if command == "remove-return-type":
+        payload["expected_annotation"] = result.expected_annotation
         payload["annotation"] = result.annotation
     if command == "add-parameter-type":
         payload["parameter"] = result.parameter
@@ -540,6 +554,94 @@ def _cmd_add_return_type(
     return result.exit_code
 
 
+def _cmd_remove_return_type(
+    file_path: Path,
+    function: str,
+    expected_annotation: str,
+    test: bool,
+    test_command: str | None,
+    dry_run: bool,
+    db: Path | None,
+    output_format: str,
+) -> int:
+    try:
+        result = remove_return_type(
+            file_path,
+            function,
+            expected_annotation,
+            project_root=file_path.parent,
+            db_path=db,
+            run_tests=test,
+            test_command=test_command,
+            dry_run=dry_run,
+        )
+    except GitError as exc:
+        return _emit_error(
+            "remove-return-type",
+            exc,
+            output_format,
+            meta={"dry_run": dry_run, "format": output_format},
+        )
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="remove-return-type",
+                ok=result.exit_code == 0,
+                status="preview" if dry_run else result.status,
+                error=None
+                if result.exit_code == 0
+                else {
+                    "code": "TESTS_FAILED",
+                    "message": "pytest exited with a non-zero status",
+                    "details": {"exit_code": result.pytest_exit_code},
+                },
+                result=_build_operation_result_payload("remove-return-type", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {result.project_root}")
+    print("Operation:\n  remove-return-type")
+    print(f"Target:\n  {result.file_path.name}::{result.symbol}")
+    print(f"Expected annotation:\n  {result.expected_annotation}")
+    print(f"Removed annotation:\n  {result.annotation}")
+    print("Safety:")
+    print("  Git repository: OK")
+    print("  Git clean: OK")
+    print("  File inside project: OK")
+    print("  LibCST parse: OK")
+    if dry_run:
+        print("Mode:")
+        print("  Dry run; no files changed.")
+        print("Preview diff:")
+        if result.preview_diff_text:
+            print(result.preview_diff_text.rstrip())
+    else:
+        print("Applied:")
+        print("  Removed return annotation.")
+        print("Diff:")
+        if result.git_stat.strip():
+            print(result.git_stat.rstrip())
+        if result.git_diff_text.strip():
+            print(result.git_diff_text.rstrip())
+    if result.pytest_command:
+        print("Test:")
+        print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
+    print("Next:")
+    print("  Run:")
+    print("    surepython diff")
+    print("    surepython log --db <path>")
+    return result.exit_code
+
+
 def _cmd_add_parameter_type(
     file_path: Path,
     function: str,
@@ -756,6 +858,18 @@ def build_parser() -> argparse.ArgumentParser:
     return_parser.add_argument("--db", type=Path)
     return_parser.add_argument("--format", choices=["text", "json"], default="text")
 
+    remove_return_parser = subparsers.add_parser(
+        "remove-return-type", help="Remove an explicit return annotation after verifying the expected value"
+    )
+    remove_return_parser.add_argument("file_path", type=Path)
+    remove_return_parser.add_argument("--function", required=True)
+    remove_return_parser.add_argument("--expect-annotation", required=True)
+    remove_return_parser.add_argument("--test", action="store_true")
+    remove_return_parser.add_argument("--test-command")
+    remove_return_parser.add_argument("--dry-run", action="store_true")
+    remove_return_parser.add_argument("--db", type=Path)
+    remove_return_parser.add_argument("--format", choices=["text", "json"], default="text")
+
     parameter_parser = subparsers.add_parser("add-parameter-type", help="Add an explicit parameter annotation")
     parameter_parser.add_argument("file_path", type=Path)
     parameter_parser.add_argument("--function", required=True)
@@ -806,6 +920,17 @@ def main(argv: list[str] | None = None) -> int:
                 args.file_path,
                 args.function,
                 args.annotation,
+                args.test,
+                args.test_command,
+                args.dry_run,
+                args.db,
+                args.format,
+            )
+        if args.command == "remove-return-type":
+            return _cmd_remove_return_type(
+                args.file_path,
+                args.function,
+                args.expect_annotation,
                 args.test,
                 args.test_command,
                 args.dry_run,

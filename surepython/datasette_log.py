@@ -33,6 +33,8 @@ class OperationRecord:
     decorator_position: str | None = None
     decorator_target_kind: str | None = None
     parameter: str | None = None
+    expected_return_annotation: str | None = None
+    return_annotation: str | None = None
     operation_id: int | None = None
     source_operation_id: int | None = None
 
@@ -77,6 +79,8 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             decorator_position TEXT,
             decorator_target_kind TEXT,
             parameter TEXT,
+            expected_return_annotation TEXT,
+            return_annotation TEXT,
             before_sha256 TEXT,
             after_sha256 TEXT,
             git_diff TEXT,
@@ -114,6 +118,14 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.commit()
     if "decorator_target_kind" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN decorator_target_kind TEXT")
+        connection.commit()
+    if "expected_return_annotation" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN expected_return_annotation TEXT"
+        )
+        connection.commit()
+    if "return_annotation" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN return_annotation TEXT")
         connection.commit()
 
     connection.execute(
@@ -155,6 +167,8 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 decorator_position,
                 decorator_target_kind,
                 parameter,
+                expected_return_annotation,
+                return_annotation,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -164,7 +178,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 status,
                 message,
                 source_operation_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -178,6 +192,8 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.decorator_position,
                 record.decorator_target_kind,
                 record.parameter,
+                record.expected_return_annotation,
+                record.return_annotation,
                 record.before_sha256,
                 record.after_sha256,
                 record.git_diff,
@@ -217,6 +233,8 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 decorator_position,
                 decorator_target_kind,
                 parameter,
+                expected_return_annotation,
+                return_annotation,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -252,15 +270,17 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         decorator_position=row[9],
         decorator_target_kind=row[10],
         parameter=row[11],
-        before_sha256=row[12],
-        after_sha256=row[13],
-        git_diff=row[14],
-        pytest_command=row[15],
-        pytest_exit_code=row[16],
-        pytest_status=row[17],
-        status=row[18],
-        message=row[19],
-        source_operation_id=row[20],
+        expected_return_annotation=row[12],
+        return_annotation=row[13],
+        before_sha256=row[14],
+        after_sha256=row[15],
+        git_diff=row[16],
+        pytest_command=row[17],
+        pytest_exit_code=row[18],
+        pytest_status=row[19],
+        status=row[20],
+        message=row[21],
+        source_operation_id=row[22],
     )
 
 
@@ -293,6 +313,8 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 decorator_position,
                 decorator_target_kind,
                 parameter,
+                expected_return_annotation,
+                return_annotation,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -326,15 +348,17 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         decorator_position=row[9],
         decorator_target_kind=row[10],
         parameter=row[11],
-        before_sha256=row[12],
-        after_sha256=row[13],
-        git_diff=row[14],
-        pytest_command=row[15],
-        pytest_exit_code=row[16],
-        pytest_status=row[17],
-        status=row[18],
-        message=row[19],
-        source_operation_id=row[20],
+        expected_return_annotation=row[12],
+        return_annotation=row[13],
+        before_sha256=row[14],
+        after_sha256=row[15],
+        git_diff=row[16],
+        pytest_command=row[17],
+        pytest_exit_code=row[18],
+        pytest_status=row[19],
+        status=row[20],
+        message=row[21],
+        source_operation_id=row[22],
     )
 
 
@@ -360,6 +384,8 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 decorator_position,
                 decorator_target_kind,
                 parameter,
+                expected_return_annotation,
+                return_annotation,
                 before_sha256,
                 after_sha256,
                 git_diff,
@@ -396,13 +422,15 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
         decorator_position=row[9],
         decorator_target_kind=row[10],
         parameter=row[11],
-        before_sha256=row[12],
-        after_sha256=row[13],
-        git_diff=row[14],
-        pytest_command=row[15],
-        pytest_exit_code=row[16],
-        pytest_status=row[17],
-        status=row[18],
-        message=row[19],
-        source_operation_id=row[20],
+        expected_return_annotation=row[12],
+        return_annotation=row[13],
+        before_sha256=row[14],
+        after_sha256=row[15],
+        git_diff=row[16],
+        pytest_command=row[17],
+        pytest_exit_code=row[18],
+        pytest_status=row[19],
+        status=row[20],
+        message=row[21],
+        source_operation_id=row[22],
     )

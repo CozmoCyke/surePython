@@ -28,6 +28,7 @@ SurePython may:
 - preview a supported micro-change
 - add one skeleton docstring to one function or method
 - add one explicit return annotation to one function or method
+- remove one explicit return annotation from one function or method after verifying the expected annotation
 - add one explicit parameter annotation to one function or method
 - add one explicit top-level import statement with one binding to one module file
 - add one explicit decorator expression to one function, method, or class
@@ -62,6 +63,19 @@ python -m surepython add-return-type <file.py> --function <symbol> --annotation 
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db> --format json
+python -m surepython diff
+git status --short
+```
+
+For a supported return annotation removal operation:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython scan <project-or-folder> --format json
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --dry-run
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --dry-run --format json
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --test --db <database.db>
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -124,6 +138,7 @@ Rollback must remain explicit. Codex should not turn a pytest failure into an au
 
 When using `--id`, Codex should confirm that the selected operation belongs to the current project and should treat `OPERATION_NOT_FOUND`, `ROLLBACK_ALREADY_APPLIED`, `ROLLBACK_RECORD_NOT_ALLOWED`, and `PROJECT_MISMATCH` as hard refusals.
 `add-parameter-type` follows the same rollback contract, including byte-exact restoration and the refusal path for `legacy/unverifiable` records.
+`remove-return-type` follows the same rollback contract, including the compare-and-remove guard and byte-exact restoration.
 `add-import` follows the same rollback contract, including the refusal path for multi-binding, wildcard, relative, and binding-conflict cases.
 
 ## Agent Safety Rules

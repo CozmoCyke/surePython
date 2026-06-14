@@ -15,14 +15,14 @@ Current supported operation:
 
 - add one skeleton docstring to one Python function or method that has no existing docstring
 - add one explicit return annotation to one Python function or method that has no existing return annotation
+- remove one explicit return annotation from one Python function or method after verifying the expected annotation
 - add one explicit parameter annotation to one Python function or method that has no existing parameter annotation
 - add one explicit top-level import statement with one binding to one Python module file
 - add one explicit decorator expression to one Python function, method, or class
 
 Current supported rollback:
 
-- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `add-parameter-type`, or `add-import` operation
-- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operation
+- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operation
 
 Current machine-readable protocol:
 
@@ -50,6 +50,13 @@ For a return annotation dry-run:
 ```powershell
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --dry-run --format json
+```
+
+For a return annotation removal dry-run:
+
+```powershell
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --dry-run
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --dry-run --format json
 ```
 
 For a parameter annotation dry-run:
@@ -80,6 +87,8 @@ python -m surepython add-docstring <file.py> --function <symbol> --test --db <da
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db> --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db> --format json
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --test --db <database.db>
+python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db>
 python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db>
@@ -111,6 +120,7 @@ git status --short
 - Do not target more than one symbol per SurePython operation.
 - Do not replace an existing docstring.
 - Do not replace an existing return annotation.
+- Do not remove a return annotation unless the expected annotation matches.
 - Do not infer return annotations.
 - Do not infer parameter annotations.
 - Do not add imports automatically.

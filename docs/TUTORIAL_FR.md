@@ -8,10 +8,11 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui quatre micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui cinq micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
+- retirer une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si l'annotation correspond exactement à celle attendue ;
 - ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
 - ajouter une instruction `import` explicite au niveau module, avec un seul binding, uniquement si ce binding n'existe pas déjà.
 - ajouter un décorateur explicite à une fonction, méthode ou classe ciblée, uniquement si ce décorateur n'est pas déjà présent et si la cible n'est pas ambiguë.
@@ -167,7 +168,35 @@ Contrat :
 
 SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
 
-## 4 ter. Ajouter une annotation de paramètre explicite
+## 4 ter. Retirer une annotation de retour explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --dry-run
+.\.venv\Scripts\python.exe -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- l'annotation attendue est fournie explicitement ;
+- la comparaison entre l'annotation attendue et l'annotation réelle se fait avant suppression ;
+- un retour absent est refusé ;
+- un décalage entre l'annotation attendue et l'annotation réelle est refusé ;
+- aucun import n'est ajouté automatiquement ;
+- le corps de la fonction n'est pas modifié ;
+- le rollback reste explicite et vérifié par hash.
+
+SurePython compare les annotations de retour par forme syntaxique, pas par résolution de nom. Les différences de pure mise en forme sont ignorées, mais pas les différences structurelles.
+
+## 4 quater. Ajouter une annotation de paramètre explicite
 
 Prévisualisation :
 
@@ -195,7 +224,7 @@ Contrat :
 
 Comme pour les retours de fonction, SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
 
-## 4 quater. Ajouter un import explicite
+## 4 quinquies. Ajouter un import explicite
 
 Prévisualisation :
 
@@ -223,9 +252,9 @@ Contrat :
 
 SurePython valide la syntaxe de l'instruction, pas le sens métier du module. L'agent doit fournir l'import exact à insérer.
 
-Les commandes `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+Les commandes `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
 
-## 4 quinquies. Ajouter un décorateur explicite
+## 4 sexies. Ajouter un décorateur explicite
 
 Prévisualisation :
 
@@ -293,8 +322,8 @@ Le rollback est explicite et exige une base SQLite :
 
 SurePython vérifie notamment :
 
-- présence d'un enregistrement compatible (`add-docstring` ou `add-return-type`)
-- présence d'un enregistrement compatible (`add-docstring`, `add-return-type`, `add-parameter-type`, ou `add-import`)
+- présence d'un enregistrement compatible (`add-docstring`, `add-return-type` ou `remove-return-type`)
+- présence d'un enregistrement compatible (`add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, ou `add-import`)
 - fichier actuel présent
 - dépôt Git propre
 - fichier dans la racine autorisée
@@ -317,6 +346,7 @@ Seulement si le dry-run est correct :
 Le rollback réel :
 
 - restaure uniquement l'opération compatible journalisée (`add-docstring`, `add-return-type`, `add-parameter-type`, ou `add-import`)
+- restaure uniquement l'opération compatible journalisée (`add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, ou `add-import`)
 - écrit les octets restaurés seulement après validation du hash
 - journalise une opération `rollback` avec statut `rolled_back`
 - le sélecteur explicite `--id` ne peut être utilisé qu'à la place de `--last`

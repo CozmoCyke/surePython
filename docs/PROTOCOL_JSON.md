@@ -12,6 +12,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `capabilities`
 - `add-docstring`
 - `add-return-type`
+- `remove-return-type`
 - `add-parameter-type`
 - `add-import`
 - `add-decorator`
@@ -69,6 +70,10 @@ Common codes include:
 - `ANNOTATION_REQUIRED`
 - `ANNOTATION_INVALID`
 - `ANNOTATION_EXISTS`
+- `RETURN_ANNOTATION_REQUIRED`
+- `RETURN_ANNOTATION_INVALID`
+- `RETURN_ANNOTATION_NOT_FOUND`
+- `RETURN_ANNOTATION_MISMATCH`
 - `PARAMETER_REQUIRED`
 - `PARAMETER_NOT_FOUND`
 - `PARAMETER_ANNOTATION_EXISTS`
@@ -158,6 +163,7 @@ Each command declares:
 
 The current supported operations now include `add-import`, which is a top-level module edit that adds exactly one explicit import statement with one binding.
 The current supported operations also include `add-decorator`, which adds exactly one explicit decorator expression to one supported function, method, or class.
+The current supported operations also include `remove-return-type`, which removes exactly one explicit return annotation after verifying the expected annotation exactly.
 
 ## Logging And Rollback
 
@@ -166,6 +172,7 @@ The current supported operations also include `add-decorator`, which adds exactl
 - Rollback responses expose both the source operation and the rollback log id
 - Rollback responses also expose a `selector` object with `type` and `value`
 - Parameter annotation responses expose the selected `parameter` name in `target`
+- Return annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Import insertion responses expose the selected `binding` name and exact `statement` in `target`
 - Decorator insertion responses expose the selected `symbol`, decorator expression, position, and target kind in `target`
 - `legacy/unverifiable` records are refused without writing

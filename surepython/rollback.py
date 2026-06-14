@@ -7,7 +7,7 @@ from pathlib import Path
 
 import libcst as cst
 
-from .codemods import TODO_DOCSTRING
+from .codemods import TODO_DOCSTRING, _ReturnTypeInserter
 from .datasette_log import (
     OperationRecord,
     insert_record,
@@ -38,6 +38,7 @@ class RollbackResult:
     source_operation: str
     source_operation_id: int | None
     rollback_operation_id: int | None
+    return_annotation: str | None
     written: bool
     logged: bool
     bytes_equal: bool
@@ -407,6 +408,11 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: parameter",
             code="ROLLBACK_NOT_AVAILABLE",
         )
+    if record.operation == "remove-return-type" and not record.return_annotation:
+        raise GitError(
+            "Operation is missing rollback data: return_annotation",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
     if record.operation == "add-import" and not record.import_statement:
         raise GitError(
             "Operation is missing rollback data: import_statement",
@@ -432,7 +438,7 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: decorator_target_kind",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type", "add-parameter-type", "add-import", "add-decorator"}:
+    if record.operation not in {"add-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "add-import", "add-decorator"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -496,6 +502,12 @@ def _prepare_rollback_record(
         updated_module = module.visit(remover)
         if not remover.matched:
             raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
+    elif record.operation == "remove-return-type":
+        inserter = _ReturnTypeInserter(record.symbol or "", record.return_annotation or "")
+        operation_label = "remove-return-type"
+        updated_module = module.visit(inserter)
+        if not inserter.matched:
+            raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
     elif record.operation == "add-parameter-type":
         remover = _ParameterTypeRemover(record.symbol or "", record.parameter or "")
         operation_label = "add-parameter-type"
@@ -517,6 +529,7 @@ def _prepare_rollback_record(
     needle_text = (
         record.import_statement
         or record.decorator_expression
+        or record.return_annotation
         or TODO_DOCSTRING
     )
     restored_bytes = _select_restored_bytes(
@@ -557,6 +570,8 @@ def _prepare_rollback_record(
             decorator_position=record.decorator_position,
             decorator_target_kind=record.decorator_target_kind,
             parameter=record.parameter,
+            expected_return_annotation=record.expected_return_annotation,
+            return_annotation=record.return_annotation,
             before_sha256=current_sha,
             after_sha256=restored_sha,
             git_diff=preview_diff_text,
@@ -583,6 +598,8 @@ def _prepare_rollback_record(
                 decorator_position=rollback_record.decorator_position,
                 decorator_target_kind=rollback_record.decorator_target_kind,
                 parameter=rollback_record.parameter,
+                expected_return_annotation=rollback_record.expected_return_annotation,
+                return_annotation=rollback_record.return_annotation,
                 before_sha256=rollback_record.before_sha256,
                 after_sha256=rollback_record.after_sha256,
                 git_diff=rollback_record.git_diff,
@@ -611,6 +628,7 @@ def _prepare_rollback_record(
         source_operation=record.operation or "",
         source_operation_id=record.operation_id,
         rollback_operation_id=rollback_operation_id,
+        return_annotation=record.return_annotation,
         parameter=record.parameter,
         written=not dry_run,
         logged=rollback_operation_id is not None,

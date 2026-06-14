@@ -74,6 +74,30 @@ class AddReturnTypeResult:
 
 
 @dataclass(frozen=True)
+class RemoveReturnTypeResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    expected_annotation: str
+    annotation: str
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
+
+
+@dataclass(frozen=True)
 class AddParameterTypeResult:
     file_path: Path
     project_root: Path
@@ -235,6 +259,19 @@ def _validate_annotation_expression(annotation: str, *, empty_code: str) -> cst.
 
 def _validate_return_annotation(annotation: str) -> cst.BaseExpression:
     return _validate_annotation_expression(annotation, empty_code="ANNOTATION_REQUIRED")
+
+
+def _validate_expected_return_annotation(annotation: str) -> cst.BaseExpression:
+    try:
+        return _validate_annotation_expression(annotation, empty_code="RETURN_ANNOTATION_REQUIRED")
+    except GitError as exc:
+        if exc.code == "ANNOTATION_INVALID":
+            raise GitError(
+                str(exc),
+                code="RETURN_ANNOTATION_INVALID",
+                details=exc.details,
+            ) from exc
+        raise
 
 
 def _validate_parameter_annotation(annotation: str) -> cst.BaseExpression:
@@ -974,6 +1011,8 @@ def _write_state(
     pytest_status: str | None,
     status: str,
     message: str | None,
+    expected_return_annotation: str | None = None,
+    return_annotation: str | None = None,
 ) -> int | None:
     record = OperationRecord(
         created_at=now_utc_iso(),
@@ -995,6 +1034,8 @@ def _write_state(
         pytest_status=pytest_status,
         status=status,
         message=message,
+        expected_return_annotation=expected_return_annotation,
+        return_annotation=return_annotation,
     )
     operation_id: int | None = None
     if db_path is not None and status not in {"planned", "refused"}:
@@ -1225,6 +1266,67 @@ class _ReturnTypeInserter(cst.CSTTransformer):
         return updated_node.with_changes(
             returns=cst.Annotation(annotation=self.annotation_expression)
         )
+
+
+class _ReturnTypeRemover(cst.CSTTransformer):
+    def __init__(self, target_qname: str, expected_annotation: str, module: cst.Module) -> None:
+        self.target_qname = target_qname
+        self.expected_annotation = expected_annotation
+        self.module = module
+        self.expected_annotation_expression = _validate_expected_return_annotation(expected_annotation)
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.matched = False
+        self.removed_annotation_source: str | None = None
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        self.scope.pop()
+        return updated_node
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        is_target = qname == self.target_qname
+        self.function_stack.append(is_target)
+        if not is_target:
+            return
+        if node.returns is None:
+            raise GitError(
+                "Target does not contain a return annotation",
+                code="RETURN_ANNOTATION_NOT_FOUND",
+                details={"symbol": self.target_qname},
+            )
+        if not self.expected_annotation_expression.deep_equals(node.returns.annotation):
+            actual_annotation = self.module.code_for_node(node.returns.annotation).strip()
+            raise GitError(
+                "Target return annotation does not match the expected annotation",
+                code="RETURN_ANNOTATION_MISMATCH",
+                details={
+                    "symbol": self.target_qname,
+                    "expected_annotation": self.expected_annotation,
+                    "actual_annotation": actual_annotation,
+                },
+            )
+        self.removed_annotation_source = self.module.code_for_node(node.returns.annotation).strip()
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+        if updated_node.returns is None:
+            raise GitError(
+                "Target does not contain a return annotation",
+                code="RETURN_ANNOTATION_NOT_FOUND",
+                details={"symbol": self.target_qname},
+            )
+        self.matched = True
+        return updated_node.with_changes(returns=None)
 
 
 class _ParameterTypeInserter(cst.CSTTransformer):
@@ -1692,6 +1794,222 @@ def add_return_type(
         db_path=db_path,
         symbol=target_qname,
         annotation=annotation,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
+    )
+
+
+def remove_return_type(
+    file_path: Path,
+    target: str,
+    expected_annotation: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> RemoveReturnTypeResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
+
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
+
+    records = scan_file(file_path)
+    target_qname = _resolve_target(records, target)
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-return-type",
+            symbol=target_qname,
+            expected_return_annotation=expected_annotation,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+        )
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
+
+    module = ast.parse(source, filename=str(file_path))
+    node = _find_target_node(module, target_qname)
+    if node is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-return-type",
+            symbol=target_qname,
+            expected_return_annotation=expected_annotation,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target symbol not found",
+        )
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        raise GitError("Target is not a function or method", code="TARGET_UNSUPPORTED")
+    if node.returns is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-return-type",
+            symbol=target_qname,
+            expected_return_annotation=expected_annotation,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target does not contain a return annotation",
+        )
+        raise GitError(
+            "Target does not contain a return annotation",
+            code="RETURN_ANNOTATION_NOT_FOUND",
+            details={"symbol": target_qname},
+        )
+
+    cst_module = cst.parse_module(source)
+    transformer = _ReturnTypeRemover(target_qname, expected_annotation, cst_module)
+    updated_module = cst_module.visit(transformer)
+    if not transformer.matched:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-return-type",
+            symbol=target_qname,
+            expected_return_annotation=expected_annotation,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target return annotation did not match the expected annotation",
+        )
+        raise GitError(
+            "Target return annotation does not match the expected annotation",
+            code="RETURN_ANNOTATION_MISMATCH",
+            details={"symbol": target_qname, "expected_annotation": expected_annotation},
+        )
+
+    removed_annotation_source = transformer.removed_annotation_source or ""
+    updated_source = updated_module.code
+    updated_bytes = _encode_python_text(updated_source, bom, encoding)
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = (
+        f"Planned return annotation removal: {removed_annotation_source}."
+        if dry_run
+        else f"Removed return annotation: {removed_annotation_source}."
+    )
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    operation_id: int | None = None
+    if not dry_run:
+        operation_id = _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-return-type",
+            symbol=target_qname,
+            expected_return_annotation=expected_annotation,
+            return_annotation=removed_annotation_source,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-return-type",
+            symbol=target_qname,
+            expected_return_annotation=expected_annotation,
+            return_annotation=removed_annotation_source,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+
+    logged = operation_id is not None
+    return RemoveReturnTypeResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=target_qname,
+        expected_annotation=expected_annotation,
+        annotation=removed_annotation_source,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         preview_diff_text=preview_diff_text if dry_run else None,

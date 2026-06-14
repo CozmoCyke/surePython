@@ -17,6 +17,7 @@ It is not a general refactoring engine. It currently supports a deliberately sma
 
 - add one skeleton docstring to one targeted Python function or method, only when the target has no existing docstring
 - add one explicit return annotation to one targeted Python function or method, only when the target has no existing return annotation
+- remove one explicit return annotation from one targeted Python function or method after verifying the expected annotation
 - add one explicit annotation to one targeted Python parameter, only when that parameter has no existing annotation
 - add one explicit top-level import statement with a single binding to one module file, only when that binding does not already exist
 - add one explicit decorator expression to one targeted Python function, method, or class, only when the decorator is not already present and the target is unambiguous
@@ -104,6 +105,24 @@ SurePython never infers the annotation. Codex or a human proposes it; SurePython
 `add-return-type` validates syntax, not semantic availability. If an annotation references a name that the project cannot resolve at runtime, `--test` should expose that failure.
 
 ```powershell
+python -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --dry-run
+python -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --test --db .\surepython_lab.db
+python -m surepython remove-return-type src\service.py --function UserService.load_user --expect-annotation "User | None" --dry-run --format json
+```
+
+`remove-return-type` accepts:
+
+- `--function NAME`
+- `--function Class.method`
+- `--expect-annotation "<exact return annotation>"`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+`remove-return-type` compares the expected annotation against the target's actual return annotation before removing it. It refuses when the annotation is absent or does not match.
+
+```powershell
 python -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --dry-run
 python -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --test --db .\surepython_lab.db
 python -m surepython add-parameter-type src\service.py --function UserService.load_user --parameter source --annotation "str" --dry-run --format json
@@ -185,7 +204,7 @@ python -m surepython rollback --last --db .\surepython_lab.db --format json
 python -m surepython rollback --id 42 --db .\surepython_lab.db --format json
 ```
 
-`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operations. It supports either `--last` or `--id <operation_id>`, but never both.
+`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operations. It supports either `--last` or `--id <operation_id>`, but never both.
 
 ## Agent Protocol
 
@@ -219,6 +238,11 @@ SurePython currently enforces these principles:
 - `add-return-type` does not infer types
 - `add-return-type` does not add imports
 - `add-return-type` does not modify parameters or function bodies
+- `remove-return-type` refuses absent return annotations
+- `remove-return-type` refuses mismatched expected annotations
+- `remove-return-type` does not infer types
+- `remove-return-type` does not add imports
+- `remove-return-type` does not modify parameters or function bodies
 - `add-parameter-type` refuses existing parameter annotations
 - `add-parameter-type` does not infer parameter types
 - `add-parameter-type` refuses variadic parameters
@@ -305,6 +329,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 2.3: safe parameter annotation edits
 - Phase 2.4: safe explicit import insertion and expanded self-hosting
 - Phase 2.5: safe explicit decorator insertion
+- Phase 2.6: safe return annotation removal by explicit comparison
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 

@@ -22,7 +22,14 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     assert payload["protocol_schema_version"] == "1.0"
     assert payload["capabilities_schema_version"] == "1.0"
     operations = {operation["name"]: operation for operation in payload["operations"]}
-    assert set(operations) == {"add-docstring", "add-return-type", "add-parameter-type", "add-import", "add-decorator"}
+    assert set(operations) == {
+        "add-docstring",
+        "add-return-type",
+        "remove-return-type",
+        "add-parameter-type",
+        "add-import",
+        "add-decorator",
+    }
     assert operations["add-docstring"]["supports_rollback"] is True
     assert operations["add-return-type"]["targets"] == ["function", "method"]
     assert operations["add-return-type"]["required_arguments"] == [
@@ -32,6 +39,13 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     ]
     assert "json" in operations["add-docstring"]["supported_formats"]
     assert "ANNOTATION_INVALID" in operations["add-return-type"]["possible_error_codes"]
+    assert operations["remove-return-type"]["targets"] == ["function", "method"]
+    assert operations["remove-return-type"]["required_arguments"] == [
+        "file",
+        "function",
+        "expect-annotation",
+    ]
+    assert "RETURN_ANNOTATION_MISMATCH" in operations["remove-return-type"]["possible_error_codes"]
     assert operations["add-parameter-type"]["supported_parameter_kinds"] == [
         "positional-only",
         "positional-or-keyword",
@@ -67,6 +81,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     output = capsys.readouterr().out
     assert "add-docstring" in output
     assert "add-return-type" in output
+    assert "remove-return-type" in output
     assert "add-parameter-type" in output
     assert "add-import" in output
     assert "add-decorator" in output
