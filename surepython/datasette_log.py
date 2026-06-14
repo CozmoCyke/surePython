@@ -29,6 +29,9 @@ class OperationRecord:
     message: str | None
     import_statement: str | None = None
     import_binding: str | None = None
+    decorator_expression: str | None = None
+    decorator_position: str | None = None
+    decorator_target_kind: str | None = None
     parameter: str | None = None
     operation_id: int | None = None
     source_operation_id: int | None = None
@@ -70,6 +73,9 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             symbol TEXT,
             import_statement TEXT,
             import_binding TEXT,
+            decorator_expression TEXT,
+            decorator_position TEXT,
+            decorator_target_kind TEXT,
             parameter TEXT,
             before_sha256 TEXT,
             after_sha256 TEXT,
@@ -99,6 +105,15 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.commit()
     if "import_binding" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN import_binding TEXT")
+        connection.commit()
+    if "decorator_expression" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN decorator_expression TEXT")
+        connection.commit()
+    if "decorator_position" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN decorator_position TEXT")
+        connection.commit()
+    if "decorator_target_kind" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN decorator_target_kind TEXT")
         connection.commit()
 
     connection.execute(
@@ -136,6 +151,9 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 symbol,
                 import_statement,
                 import_binding,
+                decorator_expression,
+                decorator_position,
+                decorator_target_kind,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -146,7 +164,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 status,
                 message,
                 source_operation_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -156,6 +174,9 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.symbol,
                 record.import_statement,
                 record.import_binding,
+                record.decorator_expression,
+                record.decorator_position,
+                record.decorator_target_kind,
                 record.parameter,
                 record.before_sha256,
                 record.after_sha256,
@@ -192,6 +213,9 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 symbol,
                 import_statement,
                 import_binding,
+                decorator_expression,
+                decorator_position,
+                decorator_target_kind,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -224,16 +248,19 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         symbol=row[5],
         import_statement=row[6],
         import_binding=row[7],
-        parameter=row[8],
-        before_sha256=row[9],
-        after_sha256=row[10],
-        git_diff=row[11],
-        pytest_command=row[12],
-        pytest_exit_code=row[13],
-        pytest_status=row[14],
-        status=row[15],
-        message=row[16],
-        source_operation_id=row[17],
+        decorator_expression=row[8],
+        decorator_position=row[9],
+        decorator_target_kind=row[10],
+        parameter=row[11],
+        before_sha256=row[12],
+        after_sha256=row[13],
+        git_diff=row[14],
+        pytest_command=row[15],
+        pytest_exit_code=row[16],
+        pytest_status=row[17],
+        status=row[18],
+        message=row[19],
+        source_operation_id=row[20],
     )
 
 
@@ -262,6 +289,9 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 symbol,
                 import_statement,
                 import_binding,
+                decorator_expression,
+                decorator_position,
+                decorator_target_kind,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -292,16 +322,19 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         symbol=row[5],
         import_statement=row[6],
         import_binding=row[7],
-        parameter=row[8],
-        before_sha256=row[9],
-        after_sha256=row[10],
-        git_diff=row[11],
-        pytest_command=row[12],
-        pytest_exit_code=row[13],
-        pytest_status=row[14],
-        status=row[15],
-        message=row[16],
-        source_operation_id=row[17],
+        decorator_expression=row[8],
+        decorator_position=row[9],
+        decorator_target_kind=row[10],
+        parameter=row[11],
+        before_sha256=row[12],
+        after_sha256=row[13],
+        git_diff=row[14],
+        pytest_command=row[15],
+        pytest_exit_code=row[16],
+        pytest_status=row[17],
+        status=row[18],
+        message=row[19],
+        source_operation_id=row[20],
     )
 
 
@@ -323,6 +356,9 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 symbol,
                 import_statement,
                 import_binding,
+                decorator_expression,
+                decorator_position,
+                decorator_target_kind,
                 parameter,
                 before_sha256,
                 after_sha256,
@@ -356,14 +392,17 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
         symbol=row[5],
         import_statement=row[6],
         import_binding=row[7],
-        parameter=row[8],
-        before_sha256=row[9],
-        after_sha256=row[10],
-        git_diff=row[11],
-        pytest_command=row[12],
-        pytest_exit_code=row[13],
-        pytest_status=row[14],
-        status=row[15],
-        message=row[16],
-        source_operation_id=row[17],
+        decorator_expression=row[8],
+        decorator_position=row[9],
+        decorator_target_kind=row[10],
+        parameter=row[11],
+        before_sha256=row[12],
+        after_sha256=row[13],
+        git_diff=row[14],
+        pytest_command=row[15],
+        pytest_exit_code=row[16],
+        pytest_status=row[17],
+        status=row[18],
+        message=row[19],
+        source_operation_id=row[20],
     )

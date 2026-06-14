@@ -14,6 +14,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `add-return-type`
 - `add-parameter-type`
 - `add-import`
+- `add-decorator`
 - `rollback`
 
 ## General Response Shape
@@ -72,6 +73,13 @@ Common codes include:
 - `PARAMETER_NOT_FOUND`
 - `PARAMETER_ANNOTATION_EXISTS`
 - `PARAMETER_KIND_UNSUPPORTED`
+- `DECORATOR_REQUIRED`
+- `DECORATOR_INVALID`
+- `DECORATOR_POSITION_REQUIRED`
+- `DECORATOR_POSITION_INVALID`
+- `DECORATOR_TARGET_UNSUPPORTED`
+- `DECORATOR_ALREADY_EXISTS`
+- `DECORATOR_CONFLICT`
 - `IMPORT_STATEMENT_REQUIRED`
 - `IMPORT_STATEMENT_INVALID`
 - `IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED`
@@ -149,6 +157,7 @@ Each command declares:
 - `status`
 
 The current supported operations now include `add-import`, which is a top-level module edit that adds exactly one explicit import statement with one binding.
+The current supported operations also include `add-decorator`, which adds exactly one explicit decorator expression to one supported function, method, or class.
 
 ## Logging And Rollback
 
@@ -158,6 +167,7 @@ The current supported operations now include `add-import`, which is a top-level 
 - Rollback responses also expose a `selector` object with `type` and `value`
 - Parameter annotation responses expose the selected `parameter` name in `target`
 - Import insertion responses expose the selected `binding` name and exact `statement` in `target`
+- Decorator insertion responses expose the selected `symbol`, decorator expression, position, and target kind in `target`
 - `legacy/unverifiable` records are refused without writing
 
 ## Text Compatibility

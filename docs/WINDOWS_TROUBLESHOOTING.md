@@ -87,7 +87,7 @@ On Windows, text-mode file operations can accidentally change:
 
 SurePython rollback now reconstructs bytes in memory and writes with byte APIs only after the restored hash matches `before_sha256`.
 
-The same byte-exact contract applies to `add-docstring`, `add-return-type`, `add-parameter-type`, and `add-import` rollback paths.
+The same byte-exact contract applies to `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, and `add-decorator` rollback paths.
 
 If rollback refuses with:
 
@@ -124,7 +124,7 @@ Use the repository root that matches the logged project, and confirm the operati
 python -m surepython rollback --id <operation_id> --db <database.db> --dry-run --format json
 ```
 
-`rollback --id` can target any supported logged micro-modification, including parameter-annotation edits and explicit import insertions, but it still refuses legacy/unverifiable records and project mismatches.
+`rollback --id` can target any supported logged micro-modification, including parameter-annotation edits, explicit import insertions, and explicit decorator insertions, but it still refuses legacy/unverifiable records and project mismatches.
 
 ## Clean Git Requirement
 

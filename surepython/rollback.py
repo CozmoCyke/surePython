@@ -334,6 +334,63 @@ def _remove_import_statement(module: cst.Module, record: OperationRecord) -> tup
     return module.with_changes(body=tuple(updated_body)), matched
 
 
+def _remove_decorator(module: cst.Module, record: OperationRecord) -> tuple[cst.Module, bool]:
+    target_qname = record.symbol or ""
+    target_decorator = record.decorator_expression or ""
+    target_position = record.decorator_position or "outermost"
+
+    class _DecoratorRemover(cst.CSTTransformer):
+        def __init__(self) -> None:
+            self.scope: list[str] = []
+            self.function_stack: list[bool] = []
+            self.class_stack: list[bool] = []
+            self.matched = False
+
+        def visit_ClassDef(self, node: cst.ClassDef) -> None:
+            self.scope.append(node.name.value)
+            self.class_stack.append(".".join(self.scope) == target_qname)
+
+        def leave_ClassDef(
+            self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+        ) -> cst.CSTNode:
+            is_target = self.class_stack.pop()
+            self.scope.pop()
+            if not is_target:
+                return updated_node
+            decorators = list(updated_node.decorators)
+            index = 0 if target_position == "outermost" else len(decorators) - 1
+            if 0 <= index < len(decorators):
+                decorator = decorators[index]
+                if module.code_for_node(decorator.decorator).strip() == target_decorator:
+                    del decorators[index]
+                    self.matched = True
+            return updated_node.with_changes(decorators=tuple(decorators))
+
+        def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+            self.scope.append(node.name.value)
+            self.function_stack.append(".".join(self.scope) == target_qname)
+
+        def leave_FunctionDef(
+            self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+        ) -> cst.CSTNode:
+            is_target = self.function_stack.pop()
+            self.scope.pop()
+            if not is_target:
+                return updated_node
+            decorators = list(updated_node.decorators)
+            index = 0 if target_position == "outermost" else len(decorators) - 1
+            if 0 <= index < len(decorators):
+                decorator = decorators[index]
+                if module.code_for_node(decorator.decorator).strip() == target_decorator:
+                    del decorators[index]
+                    self.matched = True
+            return updated_node.with_changes(decorators=tuple(decorators))
+
+    remover = _DecoratorRemover()
+    updated_module = module.visit(remover)
+    return updated_module, remover.matched
+
+
 def _require_record_fields(record: OperationRecord) -> None:
     missing = [
         name
@@ -360,7 +417,22 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: import_binding",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type", "add-parameter-type", "add-import"}:
+    if record.operation == "add-decorator" and not record.decorator_expression:
+        raise GitError(
+            "Operation is missing rollback data: decorator_expression",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "add-decorator" and not record.decorator_position:
+        raise GitError(
+            "Operation is missing rollback data: decorator_position",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "add-decorator" and not record.decorator_target_kind:
+        raise GitError(
+            "Operation is missing rollback data: decorator_target_kind",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation not in {"add-docstring", "add-return-type", "add-parameter-type", "add-import", "add-decorator"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -430,6 +502,11 @@ def _prepare_rollback_record(
         updated_module = module.visit(remover)
         if not remover.matched:
             raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
+    elif record.operation == "add-decorator":
+        updated_module, matched = _remove_decorator(module, record)
+        operation_label = "add-decorator"
+        if not matched:
+            raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
     else:
         updated_module, matched = _remove_import_statement(module, record)
         operation_label = "add-import"
@@ -437,13 +514,18 @@ def _prepare_rollback_record(
             raise GitError("Rollback target import was not modified", code="LEGACY_UNVERIFIABLE")
 
     restored_source = updated_module.code
+    needle_text = (
+        record.import_statement
+        or record.decorator_expression
+        or TODO_DOCSTRING
+    )
     restored_bytes = _select_restored_bytes(
         source_bytes,
         restored_source,
         current_bom=bom,
         encoding=encoding,
         expected_sha256=record.before_sha256 or "",
-        needle_text=record.import_statement or TODO_DOCSTRING,
+        needle_text=needle_text,
     )
     candidate_sha = _sha256_bytes(restored_bytes)
     preview_diff_text = _preview_diff(file_path, source, restored_source)
@@ -471,6 +553,9 @@ def _prepare_rollback_record(
             symbol=record.symbol,
             import_statement=record.import_statement,
             import_binding=record.import_binding,
+            decorator_expression=record.decorator_expression,
+            decorator_position=record.decorator_position,
+            decorator_target_kind=record.decorator_target_kind,
             parameter=record.parameter,
             before_sha256=current_sha,
             after_sha256=restored_sha,
@@ -494,6 +579,9 @@ def _prepare_rollback_record(
                 symbol=rollback_record.symbol,
                 import_statement=rollback_record.import_statement,
                 import_binding=rollback_record.import_binding,
+                decorator_expression=rollback_record.decorator_expression,
+                decorator_position=rollback_record.decorator_position,
+                decorator_target_kind=rollback_record.decorator_target_kind,
                 parameter=rollback_record.parameter,
                 before_sha256=rollback_record.before_sha256,
                 after_sha256=rollback_record.after_sha256,

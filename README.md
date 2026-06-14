@@ -19,6 +19,7 @@ It is not a general refactoring engine. It currently supports a deliberately sma
 - add one explicit return annotation to one targeted Python function or method, only when the target has no existing return annotation
 - add one explicit annotation to one targeted Python parameter, only when that parameter has no existing annotation
 - add one explicit top-level import statement with a single binding to one module file, only when that binding does not already exist
+- add one explicit decorator expression to one targeted Python function, method, or class, only when the decorator is not already present and the target is unambiguous
 
 The working pipeline is:
 
@@ -147,6 +148,24 @@ python -m surepython add-import parser.py --statement "from pathlib import Path"
 It refuses multi-binding imports, wildcard imports, relative imports, and binding conflicts. Codex or a human supplies the exact import statement; SurePython does not infer it.
 
 ```powershell
+python -m surepython add-decorator src\service.py --symbol UserService.load_user --decorator "staticmethod" --position outermost --dry-run
+python -m surepython add-decorator src\service.py --symbol UserService.load_user --decorator "staticmethod" --position outermost --test --db .\surepython_lab.db
+python -m surepython add-decorator src\service.py --symbol UserService.load_user --decorator "staticmethod" --position outermost --dry-run --format json
+```
+
+`add-decorator` accepts:
+
+- `--symbol NAME`
+- `--decorator "<exact decorator expression>"`
+- `--position outermost|innermost`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+`add-decorator` supports functions, async functions, methods, async methods, and classes. It refuses duplicate decorators, decorator conflicts such as incompatible binding helpers, ambiguous targets, and unsupported decorator expressions. The decorator expression is supplied explicitly; SurePython validates and inserts it exactly.
+
+```powershell
 python -m surepython diff
 ```
 
@@ -166,7 +185,7 @@ python -m surepython rollback --last --db .\surepython_lab.db --format json
 python -m surepython rollback --id 42 --db .\surepython_lab.db --format json
 ```
 
-`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, or `add-import` operations. It supports either `--last` or `--id <operation_id>`, but never both.
+`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operations. It supports either `--last` or `--id <operation_id>`, but never both.
 
 ## Agent Protocol
 
@@ -177,7 +196,7 @@ SurePython phase 2.1 adds a stable JSON protocol for agents.
 - use `capabilities --format json` before selecting an operation
 - expect `operation_id` only for real SQLite writes
 - expect dry-runs to return `operation_id: null`
-- expect refusal codes such as `ANNOTATION_EXISTS`, `HASH_MISMATCH`, `IMPORT_ALREADY_EXISTS`, `LEGACY_UNVERIFIABLE`, and `OPERATION_NOT_FOUND`
+- expect refusal codes such as `ANNOTATION_EXISTS`, `DECORATOR_ALREADY_EXISTS`, `HASH_MISMATCH`, `IMPORT_ALREADY_EXISTS`, `LEGACY_UNVERIFIABLE`, and `OPERATION_NOT_FOUND`
 
 The full schema is documented in [docs/PROTOCOL_JSON.md](docs/PROTOCOL_JSON.md).
 
@@ -211,6 +230,10 @@ SurePython currently enforces these principles:
 - `add-import` refuses binding conflicts
 - `add-import` does not infer imports
 - `add-import` does not rewrite or sort existing imports
+- `add-decorator` refuses duplicate decorators
+- `add-decorator` refuses incompatible decorator conflicts
+- `add-decorator` does not infer decorators
+- `add-decorator` does not modify the body beyond the decorator list
 - rollback requires `--db`
 - rollback verifies `after_sha256` before reconstructing
 - rollback verifies `before_sha256` before writing
@@ -231,6 +254,9 @@ Current fields include:
 - `symbol`
 - `import_statement`
 - `import_binding`
+- `decorator_expression`
+- `decorator_position`
+- `decorator_target_kind`
 - `parameter`
 - `before_sha256`
 - `after_sha256`
@@ -250,7 +276,7 @@ Rollback supports this narrow case:
 
 ```text
 latest compatible SQLite record or selected operation id
-operation in add-docstring/add-return-type/add-parameter-type/add-import
+operation in add-docstring/add-return-type/add-parameter-type/add-import/add-decorator
 status in applied/tested/failed
 current file hash = logged after_sha256
 restored bytes hash = logged before_sha256
@@ -278,6 +304,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 2.2: explicit rollback by operation id and self-hosting comparison
 - Phase 2.3: safe parameter annotation edits
 - Phase 2.4: safe explicit import insertion and expanded self-hosting
+- Phase 2.5: safe explicit decorator insertion
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 

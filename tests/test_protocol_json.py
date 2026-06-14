@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from surepython.cli import main
-from surepython.codemods import add_docstring, add_import, add_parameter_type, add_return_type
+from surepython.codemods import add_decorator, add_docstring, add_import, add_parameter_type, add_return_type
 from surepython.protocol import build_protocol_response, dump_json
 
 
@@ -225,6 +225,50 @@ def test_add_import_json_dry_run_is_structured_and_quiet(tmp_path: Path, monkeyp
     assert payload["status"] == "preview"
     assert payload["result"]["statement"] == "from pathlib import Path"
     assert payload["result"]["binding"] == "Path"
+    assert payload["result"]["written"] is False
+    assert payload["result"]["logged"] is False
+    assert payload["result"]["rollback_available"] is False
+    assert payload["result"]["operation_id"] is None
+    assert sample.read_text(encoding="utf-8") == before
+    assert git_status_short(root) == ""
+
+
+def test_add_decorator_json_dry_run_is_structured_and_quiet(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text("def run():\n    return 1\n", encoding="utf-8")
+    init_git_repo(root)
+    before = sample.read_text(encoding="utf-8")
+
+    exit_code = main(
+        [
+            "add-decorator",
+            str(sample),
+            "--symbol",
+            "run",
+            "--decorator",
+            "staticmethod",
+            "--position",
+            "outermost",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["protocol_schema_version"] == "1.0"
+    assert payload["command"] == "add-decorator"
+    assert payload["ok"] is True
+    assert payload["status"] == "preview"
+    assert payload["error"] is None
+    assert payload["result"]["decorator"] == "staticmethod"
+    assert payload["result"]["position"] == "outermost"
+    assert payload["result"]["target"]["symbol"] == "run"
+    assert payload["result"]["target"]["kind"] == "function"
     assert payload["result"]["written"] is False
     assert payload["result"]["logged"] is False
     assert payload["result"]["rollback_available"] is False

@@ -17,10 +17,12 @@ Current supported operation:
 - add one explicit return annotation to one Python function or method that has no existing return annotation
 - add one explicit parameter annotation to one Python function or method that has no existing parameter annotation
 - add one explicit top-level import statement with one binding to one Python module file
+- add one explicit decorator expression to one Python function, method, or class
 
 Current supported rollback:
 
 - rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `add-parameter-type`, or `add-import` operation
+- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operation
 
 Current machine-readable protocol:
 
@@ -64,6 +66,13 @@ python -m surepython add-import <file.py> --statement "<exact import statement>"
 python -m surepython add-import <file.py> --statement "<exact import statement>" --dry-run --format json
 ```
 
+For a decorator dry-run:
+
+```powershell
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run --format json
+```
+
 For a real operation:
 
 ```powershell
@@ -75,6 +84,8 @@ python -m surepython add-parameter-type <file.py> --function <symbol> --paramete
 python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db>
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db> --format json
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db>
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -104,8 +115,11 @@ git status --short
 - Do not infer parameter annotations.
 - Do not add imports automatically.
 - Do not infer imports automatically.
+- Do not infer decorator expressions automatically.
+- Do not change decorator position implicitly.
 - Do not rewrite or sort existing imports.
 - Do not accept multi-binding, wildcard, or relative imports for add-import.
+- Do not use add-decorator to edit more than one target.
 - Do not broaden `Class.method` into a global function edit.
 - Do not broaden a parameter edit beyond the explicitly named parameter.
 - Do not run rollback without `--db`.

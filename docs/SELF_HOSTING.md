@@ -2,7 +2,7 @@
 
 SurePython Phase 2.2 uses SurePython as a safety layer when the requested change already matches a supported operation.
 
-Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation or import changes should use it.
+Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. Phase 2.5 extends it with `add-decorator`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation, import, or decorator changes should use it.
 
 ## Principle
 
@@ -31,6 +31,7 @@ Use SurePython when the intended edit is one of the supported micro-modification
 - add an explicit return annotation to a function or method
 - add an explicit annotation to a specific parameter on a function or method
 - add one explicit top-level import statement with a single binding to a module file
+- add one explicit decorator expression to a function, method, or class
 
 Use the explicit rollback path when the operation has already been logged and must be reversed safely.
 
@@ -39,6 +40,7 @@ Use the explicit rollback path when the operation has already been logged and mu
 Codex may edit directly when the intended change is outside the current SurePython capability set, including:
 
 - rollback selection by new selector types not yet supported
+- building the initial `add-decorator` plumbing before that capability exists
 - documentation and policy files
 - comparison reports and implementation reports
 - non-micro architectural changes
@@ -65,7 +67,9 @@ Phase 2.3 is an honest self-hosting boundary case:
 - read-only checks use SurePython capabilities and scanning
 - the new `add-parameter-type` operation had to be built before it could be used
 - direct edits were therefore the correct fallback for the plumbing itself
-- once Phase 2.3 is merged, future parameter edits should prefer SurePython
+- the new `add-decorator` operation had to be built before it could be used
+- direct edits were therefore the correct fallback for the plumbing itself
+- once Phase 2.5 is merged, future parameter, import, and decorator edits should prefer SurePython when the capability is available
 
 Do not reduce the comparison to speed alone.
 

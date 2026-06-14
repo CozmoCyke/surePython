@@ -30,9 +30,10 @@ SurePython may:
 - add one explicit return annotation to one function or method
 - add one explicit parameter annotation to one function or method
 - add one explicit top-level import statement with one binding to one module file
+- add one explicit decorator expression to one function, method, or class
 - run pytest after a real edit
 - record the operation in SQLite
-- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, or `add-import` operation
+- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operation
 - emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
@@ -91,6 +92,19 @@ python -m surepython diff
 git status --short
 ```
 
+For a supported decorator operation:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython scan <project-or-folder> --format json
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run --format json
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db>
+python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db> --format json
+python -m surepython diff
+git status --short
+```
+
 SurePython validates the parameter annotation syntax and the selected parameter kind. It does not infer names or add imports automatically.
 
 SurePython validates annotation syntax. It does not guarantee that referenced names are imported or runtime-resolvable; Codex should rely on `--test` to expose that class of failure.
@@ -125,6 +139,7 @@ When using SurePython, an agent must:
 - treat refusal as a valid outcome
 - parse the JSON protocol when `--format json` is requested
 - distinguish `--last` from `--id` and never pass both at once
+- pass the decorator position explicitly when using add-decorator
 - never bypass hash checks
 - never edit SQLite records to make rollback succeed
 - never move the public preview tag unless explicitly requested
@@ -132,6 +147,7 @@ When using SurePython, an agent must:
 - never infer a return annotation and attribute it to SurePython
 - never infer a parameter annotation and attribute it to SurePython
 - never infer an import statement and attribute it to SurePython
+- never infer a decorator expression and attribute it to SurePython
 - never assume syntactic annotation validity means pytest will pass
 
 ## Refusal Handling

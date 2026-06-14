@@ -14,6 +14,7 @@ SurePython reste volontairement petit. Il sécurise aujourd'hui quatre micro-mod
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
 - ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
 - ajouter une instruction `import` explicite au niveau module, avec un seul binding, uniquement si ce binding n'existe pas déjà.
+- ajouter un décorateur explicite à une fonction, méthode ou classe ciblée, uniquement si ce décorateur n'est pas déjà présent et si la cible n'est pas ambiguë.
 
 SurePython ne devine jamais le type. Codex ou l'humain propose l'annotation ; SurePython la vérifie et l'insère exactement.
 
@@ -223,6 +224,32 @@ Contrat :
 SurePython valide la syntaxe de l'instruction, pas le sens métier du module. L'agent doit fournir l'import exact à insérer.
 
 Les commandes `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+
+## 4 quinquies. Ajouter un décorateur explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --decorator "staticmethod" --position outermost --dry-run
+.\.venv\Scripts\python.exe -m surepython add-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --decorator "staticmethod" --position outermost --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython add-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --decorator "staticmethod" --position outermost --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython add-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --decorator "staticmethod" --position outermost --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- la cible peut être une fonction, une méthode, une fonction asynchrone, une méthode asynchrone ou une classe ;
+- le décorateur est fourni explicitement ;
+- les positions supportées sont `outermost` et `innermost` ;
+- les doublons sont refusés ;
+- les conflits de décorateurs de binding comme `staticmethod`, `classmethod` ou `property` sont refusés ;
+- aucun décorateur n'est deviné automatiquement ;
+- le rollback reste explicite et vérifié par hash.
 
 ## 5. Consulter le diff
 

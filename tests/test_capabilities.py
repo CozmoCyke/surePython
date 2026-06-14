@@ -22,7 +22,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     assert payload["protocol_schema_version"] == "1.0"
     assert payload["capabilities_schema_version"] == "1.0"
     operations = {operation["name"]: operation for operation in payload["operations"]}
-    assert set(operations) == {"add-docstring", "add-return-type", "add-parameter-type", "add-import"}
+    assert set(operations) == {"add-docstring", "add-return-type", "add-parameter-type", "add-import", "add-decorator"}
     assert operations["add-docstring"]["supports_rollback"] is True
     assert operations["add-return-type"]["targets"] == ["function", "method"]
     assert operations["add-return-type"]["required_arguments"] == [
@@ -45,6 +45,14 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     assert operations["add-import"]["targets"] == ["module"]
     assert operations["add-import"]["required_arguments"] == ["file", "statement"]
     assert "IMPORT_ALREADY_EXISTS" in operations["add-import"]["possible_error_codes"]
+    assert operations["add-decorator"]["targets"] == ["function", "method", "class"]
+    assert operations["add-decorator"]["required_arguments"] == [
+        "file",
+        "symbol",
+        "decorator",
+        "position",
+    ]
+    assert "DECORATOR_ALREADY_EXISTS" in operations["add-decorator"]["possible_error_codes"]
     commands = {command["name"]: command for command in payload["commands"]}
     assert set(commands) == {"rollback"}
     assert commands["rollback"]["selectors"] == ["last", "id"]
@@ -61,6 +69,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     assert "add-return-type" in output
     assert "add-parameter-type" in output
     assert "add-import" in output
+    assert "add-decorator" in output
     assert "rollback" in output
 
 

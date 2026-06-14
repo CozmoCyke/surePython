@@ -15,6 +15,7 @@ When the intended change matches a supported SurePython operation:
 7. Never bypass a SurePython refusal.
 
 Supported write operations currently include add-docstring, add-return-type, add-parameter-type, and add-import.
+Supported write operations currently also include add-decorator.
 
 When no supported operation matches:
 
