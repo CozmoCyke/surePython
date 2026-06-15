@@ -17,6 +17,7 @@ Current supported operation:
 - add one explicit return annotation to one Python function or method that has no existing return annotation
 - remove one explicit return annotation from one Python function or method after verifying the expected annotation
 - add one explicit parameter annotation to one Python function or method that has no existing parameter annotation
+- remove one explicit parameter annotation from one Python function or method after verifying the expected annotation
 - add one explicit top-level import statement with one binding to one Python module file
 - add one explicit decorator expression to one Python function, method, or class
 
@@ -66,6 +67,13 @@ python -m surepython add-parameter-type <file.py> --function <symbol> --paramete
 python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --dry-run --format json
 ```
 
+For a parameter annotation removal dry-run:
+
+```powershell
+python -m surepython remove-parameter-type <file.py> --function <symbol> --parameter <parameter> --expect-annotation "<annotation>" --dry-run
+python -m surepython remove-parameter-type <file.py> --function <symbol> --parameter <parameter> --expect-annotation "<annotation>" --dry-run --format json
+```
+
 For an import dry-run:
 
 ```powershell
@@ -91,6 +99,8 @@ python -m surepython remove-return-type <file.py> --function <symbol> --expect-a
 python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db>
 python -m surepython add-parameter-type <file.py> --function <symbol> --parameter <parameter> --annotation "<annotation>" --test --db <database.db> --format json
+python -m surepython remove-parameter-type <file.py> --function <symbol> --parameter <parameter> --expect-annotation "<annotation>" --test --db <database.db>
+python -m surepython remove-parameter-type <file.py> --function <symbol> --parameter <parameter> --expect-annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db>
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db> --format json
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db>
@@ -123,6 +133,7 @@ git status --short
 - Do not remove a return annotation unless the expected annotation matches.
 - Do not infer return annotations.
 - Do not infer parameter annotations.
+- Do not remove a parameter annotation unless the expected annotation matches.
 - Do not add imports automatically.
 - Do not infer imports automatically.
 - Do not infer decorator expressions automatically.

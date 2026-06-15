@@ -27,6 +27,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "add-return-type",
         "remove-return-type",
         "add-parameter-type",
+        "remove-parameter-type",
         "add-import",
         "add-decorator",
     }
@@ -46,6 +47,23 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "expect-annotation",
     ]
     assert "RETURN_ANNOTATION_MISMATCH" in operations["remove-return-type"]["possible_error_codes"]
+    assert operations["remove-parameter-type"]["targets"] == ["function", "method"]
+    assert operations["remove-parameter-type"]["required_arguments"] == [
+        "file",
+        "function",
+        "parameter",
+        "expect-annotation",
+    ]
+    assert operations["remove-parameter-type"]["supported_parameter_kinds"] == [
+        "positional-only",
+        "positional-or-keyword",
+        "keyword-only",
+    ]
+    assert operations["remove-parameter-type"]["unsupported_parameter_kinds"] == [
+        "var-positional",
+        "var-keyword",
+    ]
+    assert "PARAMETER_ANNOTATION_MISMATCH" in operations["remove-parameter-type"]["possible_error_codes"]
     assert operations["add-parameter-type"]["supported_parameter_kinds"] == [
         "positional-only",
         "positional-or-keyword",
@@ -82,6 +100,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     assert "add-docstring" in output
     assert "add-return-type" in output
     assert "remove-return-type" in output
+    assert "remove-parameter-type" in output
     assert "add-parameter-type" in output
     assert "add-import" in output
     assert "add-decorator" in output

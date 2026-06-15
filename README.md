@@ -19,6 +19,7 @@ It is not a general refactoring engine. It currently supports a deliberately sma
 - add one explicit return annotation to one targeted Python function or method, only when the target has no existing return annotation
 - remove one explicit return annotation from one targeted Python function or method after verifying the expected annotation
 - add one explicit annotation to one targeted Python parameter, only when that parameter has no existing annotation
+- remove one explicit annotation from one targeted Python parameter after verifying the expected annotation
 - add one explicit top-level import statement with a single binding to one module file, only when that binding does not already exist
 - add one explicit decorator expression to one targeted Python function, method, or class, only when the decorator is not already present and the target is unambiguous
 
@@ -144,6 +145,25 @@ SurePython never infers a parameter annotation. Codex or a human proposes it; Su
 `add-parameter-type` supports positional-only, positional-or-keyword, and keyword-only parameters. It refuses variadic parameters (`*args` and `**kwargs`).
 
 ```powershell
+python -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --dry-run
+python -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --test --db .\surepython_lab.db
+python -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --dry-run --format json
+```
+
+`remove-parameter-type` accepts:
+
+- `--function NAME`
+- `--function Class.method`
+- `--parameter NAME`
+- `--expect-annotation "<exact type expression>"`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+`remove-parameter-type` compares the expected annotation against the exact current parameter annotation before removing it. It refuses when the annotation is absent, does not match, or the parameter is variadic.
+
+```powershell
 python -m surepython add-import parser.py --statement "import json" --dry-run
 python -m surepython add-import parser.py --statement "from pathlib import Path" --test --db .\surepython_lab.db
 python -m surepython add-import parser.py --statement "from pathlib import Path" --dry-run --format json
@@ -248,6 +268,12 @@ SurePython currently enforces these principles:
 - `add-parameter-type` refuses variadic parameters
 - `add-parameter-type` does not add imports
 - `add-parameter-type` does not modify function bodies
+- `remove-parameter-type` refuses absent parameter annotations
+- `remove-parameter-type` refuses mismatched expected annotations
+- `remove-parameter-type` refuses variadic parameters
+- `remove-parameter-type` does not infer parameter types
+- `remove-parameter-type` does not add imports
+- `remove-parameter-type` does not modify function bodies
 - `add-import` refuses multiple bindings
 - `add-import` refuses wildcard imports
 - `add-import` refuses relative imports
@@ -282,6 +308,10 @@ Current fields include:
 - `decorator_position`
 - `decorator_target_kind`
 - `parameter`
+- `target_kind`
+- `parameter_kind`
+- `expected_parameter_annotation`
+- `parameter_annotation`
 - `before_sha256`
 - `after_sha256`
 - `git_diff`
@@ -300,7 +330,7 @@ Rollback supports this narrow case:
 
 ```text
 latest compatible SQLite record or selected operation id
-operation in add-docstring/add-return-type/add-parameter-type/add-import/add-decorator
+operation in add-docstring/add-return-type/remove-return-type/add-parameter-type/remove-parameter-type/add-import/add-decorator
 status in applied/tested/failed
 current file hash = logged after_sha256
 restored bytes hash = logged before_sha256
@@ -330,6 +360,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 2.4: safe explicit import insertion and expanded self-hosting
 - Phase 2.5: safe explicit decorator insertion
 - Phase 2.6: safe return annotation removal by explicit comparison
+- Phase 2.7: safe parameter annotation removal by explicit comparison
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 

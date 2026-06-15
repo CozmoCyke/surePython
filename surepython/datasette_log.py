@@ -37,6 +37,10 @@ class OperationRecord:
     return_annotation: str | None = None
     operation_id: int | None = None
     source_operation_id: int | None = None
+    target_kind: str | None = None
+    parameter_kind: str | None = None
+    expected_parameter_annotation: str | None = None
+    parameter_annotation: str | None = None
 
 
 def now_utc_iso() -> str:
@@ -89,7 +93,11 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             pytest_status TEXT,
             status TEXT NOT NULL,
             message TEXT,
-            source_operation_id INTEGER
+            source_operation_id INTEGER,
+            target_kind TEXT,
+            parameter_kind TEXT,
+            expected_parameter_annotation TEXT,
+            parameter_annotation TEXT
         )
         """
     )
@@ -126,6 +134,20 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.commit()
     if "return_annotation" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN return_annotation TEXT")
+        connection.commit()
+    if "target_kind" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN target_kind TEXT")
+        connection.commit()
+    if "parameter_kind" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN parameter_kind TEXT")
+        connection.commit()
+    if "expected_parameter_annotation" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN expected_parameter_annotation TEXT"
+        )
+        connection.commit()
+    if "parameter_annotation" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN parameter_annotation TEXT")
         connection.commit()
 
     connection.execute(
@@ -177,8 +199,12 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 pytest_status,
                 status,
                 message,
-                source_operation_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_operation_id,
+                target_kind,
+                parameter_kind,
+                expected_parameter_annotation,
+                parameter_annotation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -203,6 +229,10 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.status,
                 record.message,
                 record.source_operation_id,
+                record.target_kind,
+                record.parameter_kind,
+                record.expected_parameter_annotation,
+                record.parameter_annotation,
             ),
         )
         connection.commit()
@@ -243,7 +273,11 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 pytest_status,
                 status,
                 message,
-                source_operation_id
+                source_operation_id,
+                target_kind,
+                parameter_kind,
+                expected_parameter_annotation,
+                parameter_annotation
             FROM surepython_operations
             WHERE operation != 'rollback'
               AND status IN ('applied', 'tested', 'failed')
@@ -281,6 +315,10 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         status=row[20],
         message=row[21],
         source_operation_id=row[22],
+        target_kind=row[23],
+        parameter_kind=row[24],
+        expected_parameter_annotation=row[25],
+        parameter_annotation=row[26],
     )
 
 
@@ -323,7 +361,11 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 pytest_status,
                 status,
                 message,
-                source_operation_id
+                source_operation_id,
+                target_kind,
+                parameter_kind,
+                expected_parameter_annotation,
+                parameter_annotation
             FROM surepython_operations
             WHERE id = ?
             """,
@@ -359,6 +401,10 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         status=row[20],
         message=row[21],
         source_operation_id=row[22],
+        target_kind=row[23],
+        parameter_kind=row[24],
+        expected_parameter_annotation=row[25],
+        parameter_annotation=row[26],
     )
 
 
@@ -394,7 +440,11 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 pytest_status,
                 status,
                 message,
-                source_operation_id
+                source_operation_id,
+                target_kind,
+                parameter_kind,
+                expected_parameter_annotation,
+                parameter_annotation
             FROM surepython_operations
             WHERE operation = 'rollback'
               AND source_operation_id = ?
@@ -433,4 +483,8 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
         status=row[20],
         message=row[21],
         source_operation_id=row[22],
+        target_kind=row[23],
+        parameter_kind=row[24],
+        expected_parameter_annotation=row[25],
+        parameter_annotation=row[26],
     )

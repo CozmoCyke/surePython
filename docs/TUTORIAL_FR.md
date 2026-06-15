@@ -8,12 +8,13 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui cinq micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui six micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
 - retirer une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si l'annotation correspond exactement à celle attendue ;
 - ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
+- retirer une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si l'annotation attendue correspond exactement à l'annotation présente.
 - ajouter une instruction `import` explicite au niveau module, avec un seul binding, uniquement si ce binding n'existe pas déjà.
 - ajouter un décorateur explicite à une fonction, méthode ou classe ciblée, uniquement si ce décorateur n'est pas déjà présent et si la cible n'est pas ambiguë.
 
@@ -223,6 +224,35 @@ Contrat :
 - le rollback reste explicite et vérifié par hash.
 
 Comme pour les retours de fonction, SurePython valide la syntaxe de l'annotation, pas sa disponibilité sémantique dans le projet. Si l'annotation référence un nom non importé ou non défini au runtime, `--test` doit révéler l'échec.
+
+### Retirer une annotation de paramètre explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --dry-run
+.\.venv\Scripts\python.exe -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython remove-parameter-type src\service.py --function UserService.load_user --parameter source --expect-annotation "str" --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- l'annotation attendue est fournie explicitement ;
+- la suppression ne s'applique que si l'annotation réelle correspond exactement ;
+- un paramètre absent est refusé ;
+- un paramètre déjà sans annotation est refusé ;
+- les paramètres variadiques `*args` et `**kwargs` sont refusés ;
+- aucun import n'est ajouté automatiquement ;
+- le corps de la fonction n'est pas modifié ;
+- le rollback reste explicite et vérifié par hash.
+
+SurePython compare les annotations de paramètre par forme syntaxique. Les différences de pure mise en forme sont ignorées, mais pas les différences structurelles.
 
 ## 4 quinquies. Ajouter un import explicite
 

@@ -98,6 +98,33 @@ class RemoveReturnTypeResult:
 
 
 @dataclass(frozen=True)
+class RemoveParameterTypeResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    target_kind: str
+    parameter: str
+    parameter_kind: str
+    expected_annotation: str
+    removed_annotation: str
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
+
+
+@dataclass(frozen=True)
 class AddParameterTypeResult:
     file_path: Path
     project_root: Path
@@ -274,8 +301,25 @@ def _validate_expected_return_annotation(annotation: str) -> cst.BaseExpression:
         raise
 
 
+def _validate_expected_parameter_annotation(annotation: str) -> cst.BaseExpression:
+    try:
+        return _validate_annotation_expression(annotation, empty_code="PARAMETER_ANNOTATION_REQUIRED")
+    except GitError as exc:
+        if exc.code == "ANNOTATION_INVALID":
+            raise GitError(
+                str(exc),
+                code="PARAMETER_ANNOTATION_INVALID",
+                details=exc.details,
+            ) from exc
+        raise
+
+
 def _validate_parameter_annotation(annotation: str) -> cst.BaseExpression:
     return _validate_annotation_expression(annotation, empty_code="ANNOTATION_REQUIRED")
+
+
+def _parameter_kind_protocol_name(kind: str) -> str:
+    return kind.replace("-", "_")
 
 
 def _validate_decorator_expression(decorator: str) -> cst.BaseExpression:
@@ -1013,6 +1057,10 @@ def _write_state(
     message: str | None,
     expected_return_annotation: str | None = None,
     return_annotation: str | None = None,
+    target_kind: str | None = None,
+    parameter_kind: str | None = None,
+    expected_parameter_annotation: str | None = None,
+    parameter_annotation: str | None = None,
 ) -> int | None:
     record = OperationRecord(
         created_at=now_utc_iso(),
@@ -1036,6 +1084,10 @@ def _write_state(
         message=message,
         expected_return_annotation=expected_return_annotation,
         return_annotation=return_annotation,
+        target_kind=target_kind,
+        parameter_kind=parameter_kind,
+        expected_parameter_annotation=expected_parameter_annotation,
+        parameter_annotation=parameter_annotation,
     )
     operation_id: int | None = None
     if db_path is not None and status not in {"planned", "refused"}:
@@ -1327,6 +1379,113 @@ class _ReturnTypeRemover(cst.CSTTransformer):
             )
         self.matched = True
         return updated_node.with_changes(returns=None)
+
+
+class _ParameterTypeRemover(cst.CSTTransformer):
+    def __init__(
+        self,
+        target_qname: str,
+        parameter_name: str,
+        expected_annotation: str,
+        module: cst.Module,
+    ) -> None:
+        self.target_qname = target_qname
+        self.parameter_name = parameter_name
+        self.expected_annotation = expected_annotation
+        self.module = module
+        self.expected_annotation_expression = _validate_expected_parameter_annotation(expected_annotation)
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.matched = False
+        self.removed_annotation_source: str | None = None
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        self.scope.pop()
+        return updated_node
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        self.function_stack.append(qname == self.target_qname)
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+
+        params = updated_node.params
+        replaced = False
+
+        def update_params(values: tuple[cst.Param, ...]) -> tuple[cst.Param, ...]:
+            nonlocal replaced
+            updated_values = []
+            for param in values:
+                if param.name.value != self.parameter_name:
+                    updated_values.append(param)
+                    continue
+                if param.annotation is None:
+                    raise GitError(
+                        "Target parameter does not contain an annotation",
+                        code="PARAMETER_ANNOTATION_NOT_FOUND",
+                        details={"symbol": self.target_qname, "parameter": self.parameter_name},
+                    )
+                if not self.expected_annotation_expression.deep_equals(param.annotation.annotation):
+                    actual_annotation = self.module.code_for_node(param.annotation.annotation).strip()
+                    raise GitError(
+                        "Target parameter annotation does not match the expected annotation",
+                        code="PARAMETER_ANNOTATION_MISMATCH",
+                        details={
+                            "symbol": self.target_qname,
+                            "parameter": self.parameter_name,
+                            "expected_annotation": self.expected_annotation,
+                            "actual_annotation": actual_annotation,
+                        },
+                    )
+                replaced = True
+                self.removed_annotation_source = self.module.code_for_node(param.annotation.annotation).strip()
+                updated_values.append(param.with_changes(annotation=None))
+            return tuple(updated_values)
+
+        posonly_params = update_params(tuple(params.posonly_params))
+        regular_params = update_params(tuple(params.params))
+        kwonly_params = update_params(tuple(params.kwonly_params))
+
+        if params.star_arg is not cst.MaybeSentinel.DEFAULT and params.star_arg is not None:
+            star_arg = params.star_arg
+            if isinstance(star_arg, cst.Param) and star_arg.name.value == self.parameter_name:
+                raise GitError(
+                    "Variadic positional parameters are not supported",
+                    code="PARAMETER_KIND_UNSUPPORTED",
+                    details={"parameter": self.parameter_name, "kind": "var-positional"},
+                )
+        if params.star_kwarg is not None and params.star_kwarg.name.value == self.parameter_name:
+            raise GitError(
+                "Variadic keyword parameters are not supported",
+                code="PARAMETER_KIND_UNSUPPORTED",
+                details={"parameter": self.parameter_name, "kind": "var-keyword"},
+            )
+
+        if not replaced:
+            raise GitError(
+                "Target parameter not found",
+                code="PARAMETER_NOT_FOUND",
+                details={"parameter": self.parameter_name},
+            )
+
+        self.matched = True
+        return updated_node.with_changes(
+            params=updated_node.params.with_changes(
+                posonly_params=posonly_params,
+                params=regular_params,
+                kwonly_params=kwonly_params,
+            )
+        )
 
 
 class _ParameterTypeInserter(cst.CSTTransformer):
@@ -2010,6 +2169,256 @@ def remove_return_type(
         symbol=target_qname,
         expected_annotation=expected_annotation,
         annotation=removed_annotation_source,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
+    )
+
+
+def remove_parameter_type(
+    file_path: Path,
+    target: str,
+    parameter: str,
+    expected_annotation: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> RemoveParameterTypeResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
+    if not parameter.strip():
+        raise GitError("Parameter name is empty", code="PARAMETER_REQUIRED")
+
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
+
+    records = scan_file(file_path)
+    target_qname = _resolve_target(records, target)
+    target_record = next(
+        (
+            record
+            for record in records
+            if record.qualified_name == target_qname and record.type in {"function", "method"}
+        ),
+        None,
+    )
+    target_kind = target_record.type if target_record is not None else "function"
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-parameter-type",
+            symbol=target_qname,
+            parameter=parameter,
+            target_kind=target_kind,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+            expected_parameter_annotation=expected_annotation,
+        )
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
+
+    module = ast.parse(source, filename=str(file_path))
+    node = _find_target_node(module, target_qname)
+    if node is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-parameter-type",
+            symbol=target_qname,
+            parameter=parameter,
+            target_kind=target_kind,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target symbol not found",
+            expected_parameter_annotation=expected_annotation,
+        )
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        raise GitError("Target is not a function or method", code="TARGET_UNSUPPORTED")
+
+    resolved_kind, resolved_param = _resolve_parameter_kind(node, parameter)
+    parameter_kind = _parameter_kind_protocol_name(resolved_kind)
+    if resolved_param.annotation is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-parameter-type",
+            symbol=target_qname,
+            parameter=parameter,
+            target_kind=target_kind,
+            parameter_kind=parameter_kind,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target parameter does not contain an annotation",
+            expected_parameter_annotation=expected_annotation,
+        )
+        raise GitError(
+            "Target parameter does not contain an annotation",
+            code="PARAMETER_ANNOTATION_NOT_FOUND",
+            details={"symbol": target_qname, "parameter": parameter},
+        )
+
+    cst_module = cst.parse_module(source)
+    transformer = _ParameterTypeRemover(target_qname, parameter, expected_annotation, cst_module)
+    updated_module = cst_module.visit(transformer)
+    if not transformer.matched:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-parameter-type",
+            symbol=target_qname,
+            parameter=parameter,
+            target_kind=target_kind,
+            parameter_kind=parameter_kind,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target parameter not found",
+            expected_parameter_annotation=expected_annotation,
+        )
+        raise GitError(
+            "Target parameter not found",
+            code="PARAMETER_NOT_FOUND",
+            details={"symbol": target_qname, "parameter": parameter},
+        )
+
+    removed_annotation_source = transformer.removed_annotation_source or expected_annotation
+    updated_source = updated_module.code
+    updated_bytes = _encode_python_text(updated_source, bom, encoding)
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = (
+        f"Planned parameter annotation removal: {parameter}: {removed_annotation_source}."
+        if dry_run
+        else f"Removed parameter annotation: {parameter}: {removed_annotation_source}."
+    )
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    operation_id: int | None = None
+    if not dry_run:
+        operation_id = _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-parameter-type",
+            symbol=target_qname,
+            parameter=parameter,
+            target_kind=target_kind,
+            parameter_kind=parameter_kind,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+            expected_parameter_annotation=expected_annotation,
+            parameter_annotation=removed_annotation_source,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-parameter-type",
+            symbol=target_qname,
+            parameter=parameter,
+            target_kind=target_kind,
+            parameter_kind=parameter_kind,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+            expected_parameter_annotation=expected_annotation,
+            parameter_annotation=removed_annotation_source,
+        )
+
+    logged = operation_id is not None
+    return RemoveParameterTypeResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=target_qname,
+        target_kind=target_kind,
+        parameter=parameter,
+        parameter_kind=parameter_kind,
+        expected_annotation=expected_annotation,
+        removed_annotation=removed_annotation_source,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         preview_diff_text=preview_diff_text if dry_run else None,

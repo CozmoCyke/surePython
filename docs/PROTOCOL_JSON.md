@@ -14,6 +14,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `add-return-type`
 - `remove-return-type`
 - `add-parameter-type`
+- `remove-parameter-type`
 - `add-import`
 - `add-decorator`
 - `rollback`
@@ -76,8 +77,13 @@ Common codes include:
 - `RETURN_ANNOTATION_MISMATCH`
 - `PARAMETER_REQUIRED`
 - `PARAMETER_NOT_FOUND`
+- `PARAMETER_AMBIGUOUS`
 - `PARAMETER_ANNOTATION_EXISTS`
 - `PARAMETER_KIND_UNSUPPORTED`
+- `PARAMETER_ANNOTATION_REQUIRED`
+- `PARAMETER_ANNOTATION_INVALID`
+- `PARAMETER_ANNOTATION_NOT_FOUND`
+- `PARAMETER_ANNOTATION_MISMATCH`
 - `DECORATOR_REQUIRED`
 - `DECORATOR_INVALID`
 - `DECORATOR_POSITION_REQUIRED`
@@ -164,6 +170,7 @@ Each command declares:
 The current supported operations now include `add-import`, which is a top-level module edit that adds exactly one explicit import statement with one binding.
 The current supported operations also include `add-decorator`, which adds exactly one explicit decorator expression to one supported function, method, or class.
 The current supported operations also include `remove-return-type`, which removes exactly one explicit return annotation after verifying the expected annotation exactly.
+The current supported operations also include `remove-parameter-type`, which removes exactly one explicit parameter annotation after verifying the expected annotation exactly.
 
 ## Logging And Rollback
 
@@ -173,6 +180,7 @@ The current supported operations also include `remove-return-type`, which remove
 - Rollback responses also expose a `selector` object with `type` and `value`
 - Parameter annotation responses expose the selected `parameter` name in `target`
 - Return annotation removal responses expose both the expected annotation and the removed annotation in `target`
+- Parameter annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Import insertion responses expose the selected `binding` name and exact `statement` in `target`
 - Decorator insertion responses expose the selected `symbol`, decorator expression, position, and target kind in `target`
 - `legacy/unverifiable` records are refused without writing
