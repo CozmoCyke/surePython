@@ -8,7 +8,7 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui six micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui huit micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
@@ -17,6 +17,7 @@ SurePython reste volontairement petit. Il sécurise aujourd'hui six micro-modifi
 - retirer une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si l'annotation attendue correspond exactement à l'annotation présente.
 - ajouter une instruction `import` explicite au niveau module, avec un seul binding, uniquement si ce binding n'existe pas déjà.
 - ajouter un décorateur explicite à une fonction, méthode ou classe ciblée, uniquement si ce décorateur n'est pas déjà présent et si la cible n'est pas ambiguë.
+- retirer un décorateur explicite d'une fonction, méthode ou classe ciblée, uniquement si l'expression attendue et la position attendue correspondent exactement.
 
 SurePython ne devine jamais le type. Codex ou l'humain propose l'annotation ; SurePython la vérifie et l'insère exactement.
 
@@ -282,7 +283,7 @@ Contrat :
 
 SurePython valide la syntaxe de l'instruction, pas le sens métier du module. L'agent doit fournir l'import exact à insérer.
 
-Les commandes `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+Les commandes `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `add-decorator`, `remove-decorator` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
 
 ## 4 sexies. Ajouter un décorateur explicite
 
@@ -308,6 +309,28 @@ Contrat :
 - les doublons sont refusés ;
 - les conflits de décorateurs de binding comme `staticmethod`, `classmethod` ou `property` sont refusés ;
 - aucun décorateur n'est deviné automatiquement ;
+- le rollback reste explicite et vérifié par hash.
+
+## 4 septies. Retirer un décorateur explicite
+
+La suppression compare l'expression attendue et sa position avant d'enlever un seul décorateur :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-decorator "classmethod" --expect-position outermost --dry-run
+.\.venv\Scripts\python.exe -m surepython remove-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-decorator "classmethod" --expect-position outermost --dry-run --format json
+.\.venv\Scripts\python.exe -m surepython remove-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-decorator "classmethod" --expect-position outermost --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython remove-decorator tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-decorator "classmethod" --expect-position outermost --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- l'expression attendue est fournie explicitement ;
+- la position attendue est fournie explicitement ;
+- `outermost` et `innermost` sont les seules positions supportées ;
+- un décorateur absent est refusé ;
+- un décalage de position est refusé ;
+- un seul décorateur est retiré ;
+- le reste de la liste est préservé dans le même ordre ;
 - le rollback reste explicite et vérifié par hash.
 
 ## 5. Consulter le diff

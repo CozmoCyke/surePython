@@ -20,10 +20,11 @@ Current supported operation:
 - remove one explicit parameter annotation from one Python function or method after verifying the expected annotation
 - add one explicit top-level import statement with one binding to one Python module file
 - add one explicit decorator expression to one Python function, method, or class
+- remove one explicit decorator expression from one Python function, method, or class after verifying the expected expression and position
 
 Current supported rollback:
 
-- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operation
+- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, `add-decorator`, or `remove-decorator` operation
 
 Current machine-readable protocol:
 
@@ -105,6 +106,8 @@ python -m surepython add-import <file.py> --statement "<exact import statement>"
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db> --format json
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db>
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db> --format json
+python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --test --db <database.db>
+python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -138,9 +141,11 @@ git status --short
 - Do not infer imports automatically.
 - Do not infer decorator expressions automatically.
 - Do not change decorator position implicitly.
+- Do not remove a decorator unless the expected expression and position both match.
 - Do not rewrite or sort existing imports.
 - Do not accept multi-binding, wildcard, or relative imports for add-import.
 - Do not use add-decorator to edit more than one target.
+- Do not use remove-decorator to edit more than one target.
 - Do not broaden `Class.method` into a global function edit.
 - Do not broaden a parameter edit beyond the explicitly named parameter.
 - Do not run rollback without `--db`.

@@ -16,6 +16,7 @@ from .codemods import (
     add_return_type,
     remove_parameter_type,
     remove_return_type,
+    remove_decorator,
 )
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
@@ -146,6 +147,16 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
     if command == "add-decorator":
         payload["decorator"] = result.decorator
         payload["position"] = result.position
+        payload["target"] = {
+            "file": result.file_path.name,
+            "symbol": result.symbol,
+            "kind": result.target_kind,
+        }
+    if command == "remove-decorator":
+        payload["expected_decorator"] = result.expected_decorator
+        payload["expected_position"] = result.expected_position
+        payload["removed_decorator"] = result.removed_decorator
+        payload["removed_position"] = result.removed_position
         payload["target"] = {
             "file": result.file_path.name,
             "symbol": result.symbol,
@@ -473,6 +484,103 @@ def _cmd_add_decorator(
     else:
         print("Applied:")
         print("  Added decorator.")
+        print("Diff:")
+        if result.git_stat.strip():
+            print(result.git_stat.rstrip())
+        if result.git_diff_text.strip():
+            print(result.git_diff_text.rstrip())
+    if result.pytest_command:
+        print("Test:")
+        print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
+    print("Next:")
+    print("  Run:")
+    print("    surepython diff")
+    print("    surepython log --db <path>")
+    return result.exit_code
+
+
+def _cmd_remove_decorator(
+    file_path: Path,
+    symbol: str | None,
+    expected_decorator: str | None,
+    expected_position: str | None,
+    test: bool,
+    test_command: str | None,
+    dry_run: bool,
+    db: Path | None,
+    output_format: str,
+) -> int:
+    if symbol is None or not symbol.strip():
+        exc = GitError("Symbol is required", code="TARGET_NOT_FOUND")
+        return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+    if expected_decorator is None or not expected_decorator.strip():
+        exc = GitError("Decorator expression is required", code="DECORATOR_REQUIRED")
+        return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+    if expected_position is None or not expected_position.strip():
+        exc = GitError("Decorator position is required", code="DECORATOR_POSITION_REQUIRED")
+        return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+    try:
+        result = remove_decorator(
+            file_path,
+            symbol,
+            expected_decorator,
+            expected_position,
+            project_root=file_path.parent,
+            db_path=db,
+            run_tests=test,
+            test_command=test_command,
+            dry_run=dry_run,
+        )
+    except GitError as exc:
+        return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="remove-decorator",
+                ok=result.exit_code == 0,
+                status="preview" if dry_run else result.status,
+                error=None
+                if result.exit_code == 0
+                else {
+                    "code": "TESTS_FAILED",
+                    "message": "pytest exited with a non-zero status",
+                    "details": {"exit_code": result.pytest_exit_code},
+                },
+                result=_build_operation_result_payload("remove-decorator", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {result.project_root}")
+    print("Operation:\n  remove-decorator")
+    print(f"Target:\n  {result.file_path.name}::{result.symbol}")
+    print(f"Kind:\n  {result.target_kind}")
+    print(f"Expected decorator:\n  {result.expected_decorator}")
+    print(f"Expected position:\n  {result.expected_position}")
+    print(f"Removed decorator:\n  {result.removed_decorator}")
+    print(f"Removed position:\n  {result.removed_position}")
+    print("Safety:")
+    print("  Git repository: OK")
+    print("  Git clean: OK")
+    print("  File inside project: OK")
+    print("  LibCST parse: OK")
+    if dry_run:
+        print("Mode:")
+        print("  Dry run; no files changed.")
+        print("Preview diff:")
+        if result.preview_diff_text:
+            print(result.preview_diff_text.rstrip())
+    else:
+        print("Applied:")
+        print("  Removed decorator.")
         print("Diff:")
         if result.git_stat.strip():
             print(result.git_stat.rstrip())
@@ -962,6 +1070,20 @@ def build_parser() -> argparse.ArgumentParser:
     decorator_parser.add_argument("--db", type=Path)
     decorator_parser.add_argument("--format", choices=["text", "json"], default="text")
 
+    remove_decorator_parser = subparsers.add_parser(
+        "remove-decorator",
+        help="Remove an explicit decorator after verifying the expected expression and position",
+    )
+    remove_decorator_parser.add_argument("file_path", type=Path)
+    remove_decorator_parser.add_argument("--symbol")
+    remove_decorator_parser.add_argument("--expect-decorator")
+    remove_decorator_parser.add_argument("--expect-position")
+    remove_decorator_parser.add_argument("--test", action="store_true")
+    remove_decorator_parser.add_argument("--test-command")
+    remove_decorator_parser.add_argument("--dry-run", action="store_true")
+    remove_decorator_parser.add_argument("--db", type=Path)
+    remove_decorator_parser.add_argument("--format", choices=["text", "json"], default="text")
+
     return_parser = subparsers.add_parser("add-return-type", help="Add an explicit return annotation")
     return_parser.add_argument("file_path", type=Path)
     return_parser.add_argument("--function", required=True)
@@ -1105,6 +1227,18 @@ def main(argv: list[str] | None = None) -> int:
                 args.symbol,
                 args.decorator,
                 args.position,
+                args.test,
+                args.test_command,
+                args.dry_run,
+                args.db,
+                args.format,
+            )
+        if args.command == "remove-decorator":
+            return _cmd_remove_decorator(
+                args.file_path,
+                args.symbol,
+                args.expect_decorator,
+                args.expect_position,
                 args.test,
                 args.test_command,
                 args.dry_run,

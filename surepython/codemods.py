@@ -197,6 +197,33 @@ class AddDecoratorResult:
     exit_code: int
 
 
+@dataclass(frozen=True)
+class RemoveDecoratorResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    target_kind: str
+    expected_decorator: str
+    expected_position: str
+    removed_decorator: str
+    removed_position: str
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
+
+
 def _has_docstring(node: ast.AST) -> bool:
     return ast.get_docstring(node) is not None
 
@@ -645,6 +672,18 @@ def _decorator_can_target(node: ast.AST) -> bool:
     return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
 
 
+def _decorator_position_at_index(index: int, total: int) -> str:
+    if total <= 1 or index == 0:
+        return "outermost"
+    if index == total - 1:
+        return "innermost"
+    return "middle"
+
+
+def _decorator_structure_key_from_cst(module: cst.Module, node: cst.BaseExpression) -> str:
+    return _decorator_structure_key(ast.parse(module.code_for_node(node), mode="eval").body)
+
+
 class _DecoratorInserter(cst.CSTTransformer):
     def __init__(self, target_qname: str, decorator_expression: cst.BaseExpression, position: str) -> None:
         self.target_qname = target_qname
@@ -1001,6 +1040,406 @@ def add_decorator(
     )
 
 
+def remove_decorator(
+    file_path: Path,
+    target: str,
+    expected_decorator: str,
+    expected_position: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> RemoveDecoratorResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
+    if not expected_decorator.strip():
+        raise GitError("Decorator expression is required", code="DECORATOR_REQUIRED")
+    if not expected_position.strip():
+        raise GitError("Decorator position is required", code="DECORATOR_POSITION_REQUIRED")
+    if expected_position not in {"outermost", "innermost"}:
+        raise GitError("Decorator position is invalid", code="DECORATOR_POSITION_INVALID")
+
+    decorator_expression = _validate_decorator_expression(expected_decorator)
+    expected_ast = ast.parse(expected_decorator, mode="eval").body
+    canonical_expected = ast.unparse(expected_ast)
+    expected_key = _decorator_structure_key(expected_ast)
+
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
+
+    records = scan_file(file_path)
+    target_record = _resolve_decorator_target(records, target)
+    target_qname = target_record.qualified_name
+    target_kind = target_record.type
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=canonical_expected,
+            decorator_position=expected_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+        )
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
+
+    module = ast.parse(source, filename=str(file_path))
+    node = _find_target_node(module, target_qname)
+    if node is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=canonical_expected,
+            decorator_position=expected_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target symbol not found",
+        )
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
+    if not _decorator_can_target(node):
+        raise GitError("Target is not a supported decorator target", code="DECORATOR_TARGET_UNSUPPORTED")
+
+    decorators = list(getattr(node, "decorator_list", []))
+    if not decorators:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=canonical_expected,
+            decorator_position=expected_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target does not have decorators",
+        )
+        raise GitError(
+            "Target does not have decorators",
+            code="DECORATOR_NOT_FOUND",
+            details={
+                "symbol": target_qname,
+                "expected_decorator": canonical_expected,
+                "expected_position": expected_position,
+            },
+        )
+
+    source_module = cst.parse_module(source)
+    actual_keys = [
+        _decorator_structure_key(decorator)
+        for decorator in decorators
+    ]
+    matches = [index for index, key in enumerate(actual_keys) if key == expected_key]
+    if not matches:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=canonical_expected,
+            decorator_position=expected_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target decorator not found",
+        )
+        raise GitError(
+            "Target decorator not found",
+            code="DECORATOR_NOT_FOUND",
+            details={
+                "symbol": target_qname,
+                "expected_decorator": canonical_expected,
+                "expected_position": expected_position,
+            },
+        )
+
+    selected_index = 0 if expected_position == "outermost" else len(decorators) - 1
+    if selected_index not in matches:
+        actual_index = matches[0]
+        actual_position = _decorator_position_at_index(actual_index, len(decorators))
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=canonical_expected,
+            decorator_position=expected_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Requested decorator is not at the expected position",
+        )
+        raise GitError(
+            "The requested decorator is not at the expected position.",
+            code="DECORATOR_POSITION_MISMATCH",
+            details={
+                "symbol": target_qname,
+                "expected_decorator": canonical_expected,
+                "expected_position": expected_position,
+                "actual_position": actual_position,
+            },
+        )
+
+    class _DecoratorRemover(cst.CSTTransformer):
+        def __init__(self) -> None:
+            self.scope: list[str] = []
+            self.function_stack: list[bool] = []
+            self.class_stack: list[bool] = []
+            self.matched = False
+
+        def visit_ClassDef(self, node: cst.ClassDef) -> None:
+            self.scope.append(node.name.value)
+            self.class_stack.append(".".join(self.scope) == target_qname)
+
+        def leave_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.CSTNode:
+            is_target = self.class_stack.pop()
+            self.scope.pop()
+            if not is_target or target_kind != "class":
+                return updated_node
+            decorators = list(updated_node.decorators)
+            if selected_index >= len(decorators):
+                return updated_node
+            del decorators[selected_index]
+            self.matched = True
+            return updated_node.with_changes(decorators=tuple(decorators))
+
+        def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+            self.scope.append(node.name.value)
+            self.function_stack.append(".".join(self.scope) == target_qname)
+
+        def leave_FunctionDef(
+            self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+        ) -> cst.CSTNode:
+            is_target = self.function_stack.pop()
+            self.scope.pop()
+            if not is_target or target_kind == "class":
+                return updated_node
+            decorators = list(updated_node.decorators)
+            if selected_index >= len(decorators):
+                return updated_node
+            del decorators[selected_index]
+            self.matched = True
+            return updated_node.with_changes(decorators=tuple(decorators))
+
+        def visit_AsyncFunctionDef(self, node: cst.AsyncFunctionDef) -> None:
+            self.scope.append(node.name.value)
+            self.function_stack.append(".".join(self.scope) == target_qname)
+
+        def leave_AsyncFunctionDef(
+            self, original_node: cst.AsyncFunctionDef, updated_node: cst.AsyncFunctionDef
+        ) -> cst.CSTNode:
+            is_target = self.function_stack.pop()
+            self.scope.pop()
+            if not is_target or target_kind == "class":
+                return updated_node
+            decorators = list(updated_node.decorators)
+            if selected_index >= len(decorators):
+                return updated_node
+            del decorators[selected_index]
+            self.matched = True
+            return updated_node.with_changes(decorators=tuple(decorators))
+
+    transformer = _DecoratorRemover()
+    updated_module = source_module.visit(transformer)
+    if not transformer.matched:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=canonical_expected,
+            decorator_position=expected_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target decorator not found",
+        )
+        raise GitError(
+            "Target decorator not found",
+            code="DECORATOR_NOT_FOUND",
+            details={
+                "symbol": target_qname,
+                "expected_decorator": canonical_expected,
+                "expected_position": expected_position,
+            },
+        )
+
+    updated_source = updated_module.code
+    updated_bytes = _encode_python_text(updated_source, bom, encoding)
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+    removed_decorator = ast.get_source_segment(source, decorators[selected_index]) or canonical_expected
+    removed_position = _decorator_position_at_index(selected_index, len(decorators))
+
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = (
+        f"Planned decorator removal: {canonical_expected} ({expected_position})."
+        if dry_run
+        else f"Removed decorator: {canonical_expected} ({expected_position})."
+    )
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    operation_id: int | None = None
+    if not dry_run:
+        operation_id = _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=removed_decorator,
+            decorator_position=removed_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            removed_decorator_expression=removed_decorator,
+            removed_decorator_position=removed_position,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-decorator",
+            symbol=target_qname,
+            decorator_expression=removed_decorator,
+            decorator_position=removed_position,
+            decorator_target_kind=target_kind,
+            expected_decorator_expression=canonical_expected,
+            expected_decorator_position=expected_position,
+            removed_decorator_expression=removed_decorator,
+            removed_decorator_position=removed_position,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+
+    logged = operation_id is not None
+    return RemoveDecoratorResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=target_qname,
+        target_kind=target_kind,
+        expected_decorator=canonical_expected,
+        expected_position=expected_position,
+        removed_decorator=removed_decorator,
+        removed_position=removed_position,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
+    )
+
+
 def run_pytest(cwd: Path, command: str | None = None) -> tuple[int, str]:
     if command is None:
         completed = subprocess.run(
@@ -1047,6 +1486,10 @@ def _write_state(
     decorator_expression: str | None = None,
     decorator_position: str | None = None,
     decorator_target_kind: str | None = None,
+    expected_decorator_expression: str | None = None,
+    expected_decorator_position: str | None = None,
+    removed_decorator_expression: str | None = None,
+    removed_decorator_position: str | None = None,
     before_sha256: str | None,
     after_sha256: str | None,
     git_diff_text: str | None,
@@ -1074,6 +1517,10 @@ def _write_state(
         decorator_expression=decorator_expression,
         decorator_position=decorator_position,
         decorator_target_kind=decorator_target_kind,
+        expected_decorator_expression=expected_decorator_expression,
+        expected_decorator_position=expected_decorator_position,
+        removed_decorator_expression=removed_decorator_expression,
+        removed_decorator_position=removed_decorator_position,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         git_diff=git_diff_text,

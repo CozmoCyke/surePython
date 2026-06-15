@@ -1,6 +1,6 @@
 # SurePython JSON Protocol
 
-This document defines the machine-readable contract used by SurePython phase 2.1.
+This document defines the machine-readable contract used by SurePython phase 2.8.
 
 ## Versioning
 
@@ -17,6 +17,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `remove-parameter-type`
 - `add-import`
 - `add-decorator`
+- `remove-decorator`
 - `rollback`
 
 ## General Response Shape
@@ -87,6 +88,8 @@ Common codes include:
 - `DECORATOR_INVALID`
 - `DECORATOR_POSITION_REQUIRED`
 - `DECORATOR_POSITION_INVALID`
+- `DECORATOR_NOT_FOUND`
+- `DECORATOR_POSITION_MISMATCH`
 - `DECORATOR_TARGET_UNSUPPORTED`
 - `DECORATOR_ALREADY_EXISTS`
 - `DECORATOR_CONFLICT`

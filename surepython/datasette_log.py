@@ -32,6 +32,10 @@ class OperationRecord:
     decorator_expression: str | None = None
     decorator_position: str | None = None
     decorator_target_kind: str | None = None
+    expected_decorator_expression: str | None = None
+    expected_decorator_position: str | None = None
+    removed_decorator_expression: str | None = None
+    removed_decorator_position: str | None = None
     parameter: str | None = None
     expected_return_annotation: str | None = None
     return_annotation: str | None = None
@@ -82,6 +86,10 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             decorator_expression TEXT,
             decorator_position TEXT,
             decorator_target_kind TEXT,
+            expected_decorator_expression TEXT,
+            expected_decorator_position TEXT,
+            removed_decorator_expression TEXT,
+            removed_decorator_position TEXT,
             parameter TEXT,
             expected_return_annotation TEXT,
             return_annotation TEXT,
@@ -126,6 +134,18 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.commit()
     if "decorator_target_kind" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN decorator_target_kind TEXT")
+        connection.commit()
+    if "expected_decorator_expression" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN expected_decorator_expression TEXT")
+        connection.commit()
+    if "expected_decorator_position" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN expected_decorator_position TEXT")
+        connection.commit()
+    if "removed_decorator_expression" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN removed_decorator_expression TEXT")
+        connection.commit()
+    if "removed_decorator_position" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN removed_decorator_position TEXT")
         connection.commit()
     if "expected_return_annotation" not in existing_columns:
         connection.execute(
@@ -188,6 +208,10 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
+                expected_decorator_expression,
+                expected_decorator_position,
+                removed_decorator_expression,
+                removed_decorator_position,
                 parameter,
                 expected_return_annotation,
                 return_annotation,
@@ -204,7 +228,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 parameter_kind,
                 expected_parameter_annotation,
                 parameter_annotation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -217,6 +241,10 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.decorator_expression,
                 record.decorator_position,
                 record.decorator_target_kind,
+                record.expected_decorator_expression,
+                record.expected_decorator_position,
+                record.removed_decorator_expression,
+                record.removed_decorator_position,
                 record.parameter,
                 record.expected_return_annotation,
                 record.return_annotation,
@@ -262,6 +290,10 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
+                expected_decorator_expression,
+                expected_decorator_position,
+                removed_decorator_expression,
+                removed_decorator_position,
                 parameter,
                 expected_return_annotation,
                 return_annotation,
@@ -303,22 +335,26 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         decorator_expression=row[8],
         decorator_position=row[9],
         decorator_target_kind=row[10],
-        parameter=row[11],
-        expected_return_annotation=row[12],
-        return_annotation=row[13],
-        before_sha256=row[14],
-        after_sha256=row[15],
-        git_diff=row[16],
-        pytest_command=row[17],
-        pytest_exit_code=row[18],
-        pytest_status=row[19],
-        status=row[20],
-        message=row[21],
-        source_operation_id=row[22],
-        target_kind=row[23],
-        parameter_kind=row[24],
-        expected_parameter_annotation=row[25],
-        parameter_annotation=row[26],
+        expected_decorator_expression=row[11],
+        expected_decorator_position=row[12],
+        removed_decorator_expression=row[13],
+        removed_decorator_position=row[14],
+        parameter=row[15],
+        expected_return_annotation=row[16],
+        return_annotation=row[17],
+        before_sha256=row[18],
+        after_sha256=row[19],
+        git_diff=row[20],
+        pytest_command=row[21],
+        pytest_exit_code=row[22],
+        pytest_status=row[23],
+        status=row[24],
+        message=row[25],
+        source_operation_id=row[26],
+        target_kind=row[27],
+        parameter_kind=row[28],
+        expected_parameter_annotation=row[29],
+        parameter_annotation=row[30],
     )
 
 
@@ -350,6 +386,10 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
+                expected_decorator_expression,
+                expected_decorator_position,
+                removed_decorator_expression,
+                removed_decorator_position,
                 parameter,
                 expected_return_annotation,
                 return_annotation,
@@ -389,22 +429,26 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         decorator_expression=row[8],
         decorator_position=row[9],
         decorator_target_kind=row[10],
-        parameter=row[11],
-        expected_return_annotation=row[12],
-        return_annotation=row[13],
-        before_sha256=row[14],
-        after_sha256=row[15],
-        git_diff=row[16],
-        pytest_command=row[17],
-        pytest_exit_code=row[18],
-        pytest_status=row[19],
-        status=row[20],
-        message=row[21],
-        source_operation_id=row[22],
-        target_kind=row[23],
-        parameter_kind=row[24],
-        expected_parameter_annotation=row[25],
-        parameter_annotation=row[26],
+        expected_decorator_expression=row[11],
+        expected_decorator_position=row[12],
+        removed_decorator_expression=row[13],
+        removed_decorator_position=row[14],
+        parameter=row[15],
+        expected_return_annotation=row[16],
+        return_annotation=row[17],
+        before_sha256=row[18],
+        after_sha256=row[19],
+        git_diff=row[20],
+        pytest_command=row[21],
+        pytest_exit_code=row[22],
+        pytest_status=row[23],
+        status=row[24],
+        message=row[25],
+        source_operation_id=row[26],
+        target_kind=row[27],
+        parameter_kind=row[28],
+        expected_parameter_annotation=row[29],
+        parameter_annotation=row[30],
     )
 
 
@@ -429,6 +473,10 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
+                expected_decorator_expression,
+                expected_decorator_position,
+                removed_decorator_expression,
+                removed_decorator_position,
                 parameter,
                 expected_return_annotation,
                 return_annotation,
@@ -471,20 +519,24 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
         decorator_expression=row[8],
         decorator_position=row[9],
         decorator_target_kind=row[10],
-        parameter=row[11],
-        expected_return_annotation=row[12],
-        return_annotation=row[13],
-        before_sha256=row[14],
-        after_sha256=row[15],
-        git_diff=row[16],
-        pytest_command=row[17],
-        pytest_exit_code=row[18],
-        pytest_status=row[19],
-        status=row[20],
-        message=row[21],
-        source_operation_id=row[22],
-        target_kind=row[23],
-        parameter_kind=row[24],
-        expected_parameter_annotation=row[25],
-        parameter_annotation=row[26],
+        expected_decorator_expression=row[11],
+        expected_decorator_position=row[12],
+        removed_decorator_expression=row[13],
+        removed_decorator_position=row[14],
+        parameter=row[15],
+        expected_return_annotation=row[16],
+        return_annotation=row[17],
+        before_sha256=row[18],
+        after_sha256=row[19],
+        git_diff=row[20],
+        pytest_command=row[21],
+        pytest_exit_code=row[22],
+        pytest_status=row[23],
+        status=row[24],
+        message=row[25],
+        source_operation_id=row[26],
+        target_kind=row[27],
+        parameter_kind=row[28],
+        expected_parameter_annotation=row[29],
+        parameter_annotation=row[30],
     )

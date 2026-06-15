@@ -22,6 +22,7 @@ It is not a general refactoring engine. It currently supports a deliberately sma
 - remove one explicit annotation from one targeted Python parameter after verifying the expected annotation
 - add one explicit top-level import statement with a single binding to one module file, only when that binding does not already exist
 - add one explicit decorator expression to one targeted Python function, method, or class, only when the decorator is not already present and the target is unambiguous
+- remove one explicit decorator expression from one targeted Python function, method, or class after verifying the expected expression and position
 
 The working pipeline is:
 

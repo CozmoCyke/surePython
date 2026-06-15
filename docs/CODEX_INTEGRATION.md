@@ -33,9 +33,10 @@ SurePython may:
 - remove one explicit parameter annotation from one function or method after verifying the expected annotation
 - add one explicit top-level import statement with one binding to one module file
 - add one explicit decorator expression to one function, method, or class
+- remove one explicit decorator expression from one function, method, or class after verifying the expected expression and position
 - run pytest after a real edit
 - record the operation in SQLite
-- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operation
+- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, `add-decorator`, or `remove-decorator` operation
 - emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
@@ -127,8 +128,12 @@ python -m surepython capabilities --format json
 python -m surepython scan <project-or-folder> --format json
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run --format json
+python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --dry-run
+python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --dry-run --format json
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db>
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db> --format json
+python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --test --db <database.db>
+python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```

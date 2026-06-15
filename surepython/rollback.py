@@ -7,7 +7,7 @@ from pathlib import Path
 
 import libcst as cst
 
-from .codemods import TODO_DOCSTRING, _ParameterTypeInserter, _ReturnTypeInserter
+from .codemods import TODO_DOCSTRING, _DecoratorInserter, _ParameterTypeInserter, _ReturnTypeInserter
 from .datasette_log import (
     OperationRecord,
     insert_record,
@@ -436,6 +436,21 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: import_binding",
             code="ROLLBACK_NOT_AVAILABLE",
         )
+    if record.operation == "remove-decorator" and not record.decorator_expression:
+        raise GitError(
+            "Operation is missing rollback data: decorator_expression",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-decorator" and not record.decorator_position:
+        raise GitError(
+            "Operation is missing rollback data: decorator_position",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-decorator" and not record.decorator_target_kind:
+        raise GitError(
+            "Operation is missing rollback data: decorator_target_kind",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
     if record.operation == "add-decorator" and not record.decorator_expression:
         raise GitError(
             "Operation is missing rollback data: decorator_expression",
@@ -451,7 +466,7 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: decorator_target_kind",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "remove-parameter-type", "add-import", "add-decorator"}:
+    if record.operation not in {"add-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "remove-parameter-type", "add-import", "add-decorator", "remove-decorator"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -537,6 +552,16 @@ def _prepare_rollback_record(
         updated_module, matched = _remove_decorator(module, record)
         operation_label = "add-decorator"
         if not matched:
+            raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
+    elif record.operation == "remove-decorator":
+        inserter = _DecoratorInserter(
+            record.symbol or "",
+            cst.parse_expression(record.decorator_expression or ""),
+            record.decorator_position or "outermost",
+        )
+        operation_label = "remove-decorator"
+        updated_module = module.visit(inserter)
+        if not inserter.matched:
             raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
     else:
         updated_module, matched = _remove_import_statement(module, record)

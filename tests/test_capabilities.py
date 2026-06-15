@@ -30,6 +30,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "remove-parameter-type",
         "add-import",
         "add-decorator",
+        "remove-decorator",
     }
     assert operations["add-docstring"]["supports_rollback"] is True
     assert operations["add-return-type"]["targets"] == ["function", "method"]
@@ -86,6 +87,15 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "position",
     ]
     assert "DECORATOR_ALREADY_EXISTS" in operations["add-decorator"]["possible_error_codes"]
+    assert operations["remove-decorator"]["targets"] == ["function", "method", "class"]
+    assert operations["remove-decorator"]["required_arguments"] == [
+        "file",
+        "symbol",
+        "expect-decorator",
+        "expect-position",
+    ]
+    assert "DECORATOR_NOT_FOUND" in operations["remove-decorator"]["possible_error_codes"]
+    assert "DECORATOR_POSITION_MISMATCH" in operations["remove-decorator"]["possible_error_codes"]
     commands = {command["name"]: command for command in payload["commands"]}
     assert set(commands) == {"rollback"}
     assert commands["rollback"]["selectors"] == ["last", "id"]
