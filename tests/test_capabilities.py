@@ -64,6 +64,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "var-keyword",
     ]
     assert "PARAMETER_ANNOTATION_MISMATCH" in operations["remove-parameter-type"]["possible_error_codes"]
+    assert "PARAMETER_AMBIGUOUS" not in operations["remove-parameter-type"]["possible_error_codes"]
     assert operations["add-parameter-type"]["supported_parameter_kinds"] == [
         "positional-only",
         "positional-or-keyword",

@@ -42,7 +42,7 @@ The safest path is:
    - `*args`
    - `**kwargs`
 
-Python signatures do not allow duplicate parameter names inside a valid function definition, so an explicit `PARAMETER_AMBIGUOUS` state is not required for a correct signature. If a symbol lookup is ambiguous at the function level, the existing `TARGET_AMBIGUOUS` path should remain responsible for that refusal.
+Python signatures do not allow duplicate parameter names inside a valid function definition, so an explicit parameter-ambiguity state is not required for a correct signature. If a symbol lookup is ambiguous at the function level, the existing `TARGET_AMBIGUOUS` path should remain responsible for that refusal.
 
 ## Distinguishing Parameter Categories
 
@@ -161,4 +161,3 @@ Proceed with a narrow implementation:
 - reuse of current rollback infrastructure
 - no import resolution
 - no semantic equivalence
-
