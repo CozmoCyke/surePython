@@ -126,6 +126,20 @@ python -m surepython rollback --id <operation_id> --db <database.db> --dry-run -
 
 `rollback --id` can target any supported logged micro-modification, including docstring removal, parameter-annotation additions and removals, explicit import insertions and removals, explicit decorator insertions and removals, and return-annotation removal, but it still refuses legacy/unverifiable records and project mismatches.
 
+## Transactional Plan Recovery
+
+Transactional plan manifests and preimages live in a transaction workspace outside the Git tree. That keeps the worktree clean even while a plan is being previewed, applied, rolled back, or recovered.
+
+If a `plan apply` or `plan rollback` run is interrupted, use:
+
+```powershell
+python -m surepython plan recover --format json
+```
+
+`plan recover` is a recovery path, not a new mutation model. It restores interrupted files from the saved preimages and leaves Git unchanged.
+
+If the manifest says recovery is required, do not attempt to hand-edit the workspace or recreate the state from Git alone. The transaction workspace is the source of truth for that interrupted operation.
+
 ## Clean Git Requirement
 
 Most SurePython write paths require a clean worktree.

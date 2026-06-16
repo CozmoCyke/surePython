@@ -36,9 +36,11 @@ SurePython may:
 - remove one explicit top-level import statement with one binding from one module file after verifying the expected statement
 - add one explicit decorator expression to one function, method, or class
 - remove one explicit decorator expression from one function, method, or class after verifying the expected expression and position
+- preview, apply, rollback, or recover a transactional multi-operation plan composed of supported atomic operations
 - run pytest after a real edit
 - record the operation in SQLite
 - roll back one compatible logged `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
+- roll back one compatible logged `plan` operation
 - emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
@@ -166,6 +168,19 @@ python -m surepython diff
 git status --short
 ```
 
+For a supported transactional plan:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython plan preview plan.json --format json
+python -m surepython plan apply plan.json --expect-preview-hash sha256:... --test --db <database.db> --format json
+python -m surepython plan rollback --last --db <database.db> --format json
+python -m surepython plan rollback --id <operation_id> --db <database.db> --format json
+python -m surepython plan recover --format json
+python -m surepython diff
+git status --short
+```
+
 SurePython validates the parameter annotation syntax and the selected parameter kind. It does not infer names or add imports automatically.
 
 SurePython validates annotation syntax. It does not guarantee that referenced names are imported or runtime-resolvable; Codex should rely on `--test` to expose that class of failure.
@@ -206,6 +221,8 @@ When using SurePython, an agent must:
 - never bypass hash checks
 - never edit SQLite records to make rollback succeed
 - never move the public preview tag unless explicitly requested
+- never run `plan apply` without the exact preview hash
+- never treat an interrupted plan manifest as a successful apply
 - never claim SurePython supports unsupported codemods
 - never infer a return annotation and attribute it to SurePython
 - never infer a parameter annotation and attribute it to SurePython
@@ -249,6 +266,8 @@ python -m surepython log --db <database.db>
 
 Use the manual command only when the intent is to replay the last local operation state into a selected database. It is not a replacement for automatic logging during normal operation.
 
+For grouped multi-step work, prefer `plan preview` first, then `plan apply --test --db`, and use `plan rollback` or `plan recover` only when the recorded plan state proves that is safe.
+
 ## What Codex Must Not Infer
 
 Codex must not infer that SurePython can:
@@ -279,6 +298,7 @@ apply one supported edit
 run pytest
 log to SQLite
 rollback one compatible logged edit by `--last` or explicit `--id`
+preview, apply, rollback, or recover one supported transactional plan
 return stable JSON for supported commands when requested
 ```
 

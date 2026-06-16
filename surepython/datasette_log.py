@@ -57,6 +57,60 @@ class OperationRecord:
     before_source_b64: str | None = None
 
 
+@dataclass(frozen=True)
+class PlanRecord:
+    created_at: str
+    project_path: str
+    plan_uuid: str
+    client_plan_id: str | None
+    name: str | None
+    description: str | None
+    plan_schema_version: str
+    preview_hash: str
+    status: str
+    step_count: int
+    file_count: int
+    tests_requested: bool
+    tests_passed: bool | None
+    started_at: str
+    completed_at: str
+    error_code: str | None
+    rollback_of_plan_id: int | None
+    source_plan_id: int | None
+    message: str | None
+    plan_path: str | None = None
+    metadata_json: str | None = None
+    id: int | None = None
+
+
+@dataclass(frozen=True)
+class PlanStepRecord:
+    plan_id: int | None
+    step_index: int
+    step_id: str
+    operation: str
+    file: str
+    arguments_json: str
+    status: str
+    result_json: str | None
+    error_code: str | None
+    before_sha256: str
+    after_sha256: str
+    id: int | None = None
+
+
+@dataclass(frozen=True)
+class PlanFileRecord:
+    plan_id: int | None
+    file: str
+    before_sha256: str
+    after_sha256: str
+    before_bytes: bytes
+    after_bytes: bytes
+    restored: bool
+    id: int | None = None
+
+
 def now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -232,6 +286,70 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
 
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS surepython_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            project_path TEXT NOT NULL,
+            plan_uuid TEXT NOT NULL,
+            client_plan_id TEXT,
+            name TEXT,
+            description TEXT,
+            plan_schema_version TEXT NOT NULL,
+            plan_path TEXT,
+            metadata_json TEXT,
+            preview_hash TEXT NOT NULL,
+            status TEXT NOT NULL,
+            step_count INTEGER NOT NULL,
+            file_count INTEGER NOT NULL,
+            tests_requested INTEGER NOT NULL,
+            tests_passed INTEGER,
+            started_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL,
+            error_code TEXT,
+            rollback_of_plan_id INTEGER,
+            source_plan_id INTEGER,
+            message TEXT
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS surepython_plan_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            step_index INTEGER NOT NULL,
+            step_id TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            file TEXT NOT NULL,
+            arguments_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            result_json TEXT,
+            error_code TEXT,
+            before_sha256 TEXT NOT NULL,
+            after_sha256 TEXT NOT NULL,
+            FOREIGN KEY(plan_id) REFERENCES surepython_plans(id)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS surepython_plan_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id INTEGER NOT NULL,
+            file TEXT NOT NULL,
+            before_sha256 TEXT NOT NULL,
+            after_sha256 TEXT NOT NULL,
+            before_bytes BLOB NOT NULL,
+            after_bytes BLOB NOT NULL,
+            restored INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(plan_id) REFERENCES surepython_plans(id)
+        )
+        """
+    )
+    connection.commit()
+
+    connection.execute(
+        """
         UPDATE surepython_operations
         SET source_operation_id = (
             SELECT prior.id
@@ -395,6 +513,63 @@ def _operation_record_from_row(row: tuple) -> OperationRecord:
     )
 
 
+def _plan_record_from_row(row: tuple) -> PlanRecord:
+    return PlanRecord(
+        id=row[0],
+        created_at=row[1],
+        project_path=row[2],
+        plan_uuid=row[3],
+        client_plan_id=row[4],
+        name=row[5],
+        description=row[6],
+        plan_schema_version=row[7],
+        plan_path=row[8],
+        metadata_json=row[9],
+        preview_hash=row[10],
+        status=row[11],
+        step_count=row[12],
+        file_count=row[13],
+        tests_requested=bool(row[14]),
+        tests_passed=(None if row[15] is None else bool(row[15])),
+        started_at=row[16],
+        completed_at=row[17],
+        error_code=row[18],
+        rollback_of_plan_id=row[19],
+        source_plan_id=row[20],
+        message=row[21],
+    )
+
+
+def _plan_step_record_from_row(row: tuple) -> PlanStepRecord:
+    return PlanStepRecord(
+        id=row[0],
+        plan_id=row[1],
+        step_index=row[2],
+        step_id=row[3],
+        operation=row[4],
+        file=row[5],
+        arguments_json=row[6],
+        status=row[7],
+        result_json=row[8],
+        error_code=row[9],
+        before_sha256=row[10],
+        after_sha256=row[11],
+    )
+
+
+def _plan_file_record_from_row(row: tuple) -> PlanFileRecord:
+    return PlanFileRecord(
+        id=row[0],
+        plan_id=row[1],
+        file=row[2],
+        before_sha256=row[3],
+        after_sha256=row[4],
+        before_bytes=row[5],
+        after_bytes=row[6],
+        restored=bool(row[7]),
+    )
+
+
 def read_last_supported_operation(db_path: Path) -> OperationRecord:
     if not db_path.exists():
         raise FileNotFoundError(f"Database does not exist: {db_path}")
@@ -460,6 +635,211 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
         raise FileNotFoundError("No applicable operation found")
 
     return _operation_record_from_row(row)
+
+
+def read_last_plan(db_path: Path) -> PlanRecord:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                created_at,
+                project_path,
+                plan_uuid,
+                client_plan_id,
+                name,
+                description,
+                plan_schema_version,
+                plan_path,
+                metadata_json,
+                preview_hash,
+                status,
+                step_count,
+                file_count,
+                tests_requested,
+                tests_passed,
+                started_at,
+                completed_at,
+                error_code,
+                rollback_of_plan_id,
+                source_plan_id,
+                message
+            FROM surepython_plans
+            WHERE rollback_of_plan_id IS NULL
+              AND status IN ('applied', 'tested', 'failed')
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        raise FileNotFoundError("No applicable plan found")
+
+    return _plan_record_from_row(row)
+
+
+def read_plan_by_id(db_path: Path, plan_id: int) -> PlanRecord:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                created_at,
+                project_path,
+                plan_uuid,
+                client_plan_id,
+                name,
+                description,
+                plan_schema_version,
+                plan_path,
+                metadata_json,
+                preview_hash,
+                status,
+                step_count,
+                file_count,
+                tests_requested,
+                tests_passed,
+                started_at,
+                completed_at,
+                error_code,
+                rollback_of_plan_id,
+                source_plan_id,
+                message
+            FROM surepython_plans
+            WHERE id = ?
+            """,
+            (plan_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        raise FileNotFoundError(f"Plan not found: {plan_id}")
+
+    return _plan_record_from_row(row)
+
+
+def read_rollback_for_source_plan(db_path: Path, source_plan_id: int) -> PlanRecord | None:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                created_at,
+                project_path,
+                plan_uuid,
+                client_plan_id,
+                name,
+                description,
+                plan_schema_version,
+                plan_path,
+                metadata_json,
+                preview_hash,
+                status,
+                step_count,
+                file_count,
+                tests_requested,
+                tests_passed,
+                started_at,
+                completed_at,
+                error_code,
+                rollback_of_plan_id,
+                source_plan_id,
+                message
+            FROM surepython_plans
+            WHERE rollback_of_plan_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (source_plan_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        return None
+    return _plan_record_from_row(row)
+
+
+def read_plan_steps(db_path: Path, plan_id: int) -> list[PlanStepRecord]:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                plan_id,
+                step_index,
+                step_id,
+                operation,
+                file,
+                arguments_json,
+                status,
+                result_json,
+                error_code,
+                before_sha256,
+                after_sha256
+            FROM surepython_plan_steps
+            WHERE plan_id = ?
+            ORDER BY step_index ASC, id ASC
+            """,
+            (plan_id,),
+        ).fetchall()
+    finally:
+        connection.close()
+
+    return [_plan_step_record_from_row(row) for row in rows]
+
+
+def read_plan_files(db_path: Path, plan_id: int) -> list[PlanFileRecord]:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                plan_id,
+                file,
+                before_sha256,
+                after_sha256,
+                before_bytes,
+                after_bytes,
+                restored
+            FROM surepython_plan_files
+            WHERE plan_id = ?
+            ORDER BY id ASC
+            """,
+            (plan_id,),
+        ).fetchall()
+    finally:
+        connection.close()
+
+    return [_plan_file_record_from_row(row) for row in rows]
 
 
 def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
@@ -532,6 +912,129 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
         raise FileNotFoundError(f"Operation not found: {operation_id}")
 
     return _operation_record_from_row(row)
+
+
+def insert_plan_bundle(
+    db_path: Path,
+    plan_record: PlanRecord,
+    step_records: list[PlanStepRecord],
+    file_records: list[PlanFileRecord],
+) -> int:
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        cursor = connection.execute(
+            """
+            INSERT INTO surepython_plans (
+                created_at,
+                project_path,
+                plan_uuid,
+                client_plan_id,
+                name,
+                description,
+                plan_schema_version,
+                plan_path,
+                metadata_json,
+                preview_hash,
+                status,
+                step_count,
+                file_count,
+                tests_requested,
+                tests_passed,
+                started_at,
+                completed_at,
+                error_code,
+                rollback_of_plan_id,
+                source_plan_id,
+                message
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                plan_record.created_at,
+                plan_record.project_path,
+                plan_record.plan_uuid,
+                plan_record.client_plan_id,
+                plan_record.name,
+                plan_record.description,
+                plan_record.plan_schema_version,
+                plan_record.plan_path,
+                plan_record.metadata_json,
+                plan_record.preview_hash,
+                plan_record.status,
+                plan_record.step_count,
+                plan_record.file_count,
+                int(plan_record.tests_requested),
+                None if plan_record.tests_passed is None else int(plan_record.tests_passed),
+                plan_record.started_at,
+                plan_record.completed_at,
+                plan_record.error_code,
+                plan_record.rollback_of_plan_id,
+                plan_record.source_plan_id,
+                plan_record.message,
+            ),
+        )
+        plan_id = int(cursor.lastrowid)
+
+        for step in step_records:
+            connection.execute(
+                """
+                INSERT INTO surepython_plan_steps (
+                    plan_id,
+                    step_index,
+                    step_id,
+                    operation,
+                    file,
+                    arguments_json,
+                    status,
+                    result_json,
+                    error_code,
+                    before_sha256,
+                    after_sha256
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    plan_id,
+                    step.step_index,
+                    step.step_id,
+                    step.operation,
+                    step.file,
+                    step.arguments_json,
+                    step.status,
+                    step.result_json,
+                    step.error_code,
+                    step.before_sha256,
+                    step.after_sha256,
+                ),
+            )
+
+        for file_record in file_records:
+            connection.execute(
+                """
+                INSERT INTO surepython_plan_files (
+                    plan_id,
+                    file,
+                    before_sha256,
+                    after_sha256,
+                    before_bytes,
+                    after_bytes,
+                    restored
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    plan_id,
+                    file_record.file,
+                    file_record.before_sha256,
+                    file_record.after_sha256,
+                    file_record.before_bytes,
+                    file_record.after_bytes,
+                    int(file_record.restored),
+                ),
+            )
+
+        connection.commit()
+        return plan_id
+    finally:
+        connection.close()
 
 
 def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) -> OperationRecord | None:

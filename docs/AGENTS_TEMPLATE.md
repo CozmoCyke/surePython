@@ -22,10 +22,12 @@ Current supported operation:
 - add one explicit top-level import statement with one binding to one Python module file
 - add one explicit decorator expression to one Python function, method, or class
 - remove one explicit decorator expression from one Python function, method, or class after verifying the expected expression and position
+- preview, apply, rollback, or recover a transactional multi-operation plan composed of supported atomic operations
 
 Current supported rollback:
 
 - rollback the latest compatible SQLite-logged `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
+- rollback a compatible logged `plan` operation
 
 Current machine-readable protocol:
 
@@ -104,6 +106,19 @@ python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<exp
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --dry-run --format json
 ```
 
+For a transactional plan preview:
+
+```powershell
+python -m surepython plan preview <plan.json> --format json
+```
+
+For a transactional plan apply:
+
+```powershell
+python -m surepython plan apply <plan.json> --expect-preview-hash sha256:... --test --db <database.db>
+python -m surepython plan apply <plan.json> --expect-preview-hash sha256:... --test --db <database.db> --format json
+```
+
 For a real operation:
 
 ```powershell
@@ -129,6 +144,16 @@ python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decor
 python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --test --db <database.db> --format json
 python -m surepython diff
 git status --short
+```
+
+For transactional plan rollback:
+
+```powershell
+python -m surepython plan rollback --last --db <database.db> --dry-run
+python -m surepython plan rollback --last --db <database.db> --dry-run --format json
+python -m surepython plan rollback --id <operation_id> --db <database.db> --dry-run
+python -m surepython plan rollback --id <operation_id> --db <database.db> --dry-run --format json
+python -m surepython plan recover --format json
 ```
 
 For rollback:
@@ -174,6 +199,8 @@ git status --short
 - Do not run `--id` rollback without checking the current project context.
 - Do not edit SQLite hashes to make rollback succeed.
 - Do not treat `legacy/unverifiable` records as rollbackable.
+- Do not run `plan apply` without the exact preview hash.
+- Do not treat an interrupted plan manifest as a successful apply.
 - Do not force-push or move release tags unless explicitly requested.
 - Do not ignore `protocol_schema_version` or `error.code` in JSON mode.
 

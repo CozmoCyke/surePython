@@ -115,10 +115,15 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     assert "IMPORT_AMBIGUOUS" in operations["remove-import"]["possible_error_codes"]
     assert "IMPORT_SCOPE_UNSUPPORTED" in operations["remove-import"]["possible_error_codes"]
     commands = {command["name"]: command for command in payload["commands"]}
-    assert set(commands) == {"rollback"}
+    assert set(commands) == {"rollback", "plan"}
     assert commands["rollback"]["selectors"] == ["last", "id"]
     assert commands["rollback"]["mutually_exclusive_selectors"] is True
     assert "OPERATION_ID_INVALID" in commands["rollback"]["possible_error_codes"]
+    assert commands["plan"]["selectors"] == ["preview", "apply", "rollback", "recover"]
+    assert commands["plan"]["mutually_exclusive_selectors"] is True
+    assert "PLAN_PREVIEW_MISMATCH" in commands["plan"]["possible_error_codes"]
+    assert "PLAN_ALREADY_ROLLED_BACK" in commands["plan"]["possible_error_codes"]
+    assert "PLAN_RECOVERY_REQUIRED" in commands["plan"]["possible_error_codes"]
 
 
 def test_capabilities_text_is_human_readable(capsys) -> None:

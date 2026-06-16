@@ -21,6 +21,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `add-decorator`
 - `remove-decorator`
 - `rollback`
+- `plan`
 
 ## General Response Shape
 
@@ -125,6 +126,23 @@ Common codes include:
 - `ROLLBACK_ALREADY_APPLIED`
 - `ROLLBACK_RECORD_NOT_ALLOWED`
 - `PROJECT_MISMATCH`
+- `PLAN_INVALID_JSON`
+- `PLAN_SCHEMA_UNSUPPORTED`
+- `PLAN_INVALID`
+- `PLAN_EMPTY`
+- `PLAN_TOO_LARGE`
+- `PLAN_DUPLICATE_STEP_ID`
+- `PLAN_OPERATION_UNSUPPORTED`
+- `PLAN_ARGUMENTS_INVALID`
+- `PLAN_FILE_NOT_FOUND`
+- `PLAN_PREVIEW_MISMATCH`
+- `PLAN_NO_FINAL_CHANGES`
+- `PLAN_TESTS_FAILED`
+- `PLAN_DATABASE_FAILED`
+- `PLAN_NOT_FOUND`
+- `PLAN_ALREADY_ROLLED_BACK`
+- `PLAN_ROLLBACK_FAILED`
+- `PLAN_RECOVERY_REQUIRED`
 - `INTERNAL_ERROR`
 
 ## Exit Codes
@@ -185,6 +203,7 @@ The current supported operations also include `remove-import`, which removes exa
 The current supported operations also include `add-decorator`, which adds exactly one explicit decorator expression to one supported function, method, or class.
 The current supported operations also include `remove-return-type`, which removes exactly one explicit return annotation after verifying the expected annotation exactly.
 The current supported operations also include `remove-parameter-type`, which removes exactly one explicit parameter annotation after verifying the expected annotation exactly.
+The current supported commands also include `plan`, which previews, applies, rolls back, or recovers a transactional plan composed only of supported atomic operations.
 
 ## Logging And Rollback
 
@@ -200,6 +219,20 @@ The current supported operations also include `remove-parameter-type`, which rem
 - Import removal responses expose the expected statement, removed statement, `import_binding`, and match count in `target`
 - Decorator insertion responses expose the selected `symbol`, decorator expression, position, and target kind in `target`
 - `legacy/unverifiable` records are refused without writing
+
+## Transactional Plans
+
+`python -m surepython plan` uses the same protocol envelope as the atomic operations.
+
+Plan responses are built around:
+
+- `preview_hash` to bind `plan apply` to a specific previewed state
+- `source_plan_operation_id` and `rollback_plan_operation_id` to link grouped rollback records
+- `selector` to describe `--last` or `--id`
+- `plan_schema_version` in the plan file
+- `protocol_schema_version` still equal to `"1.0"`
+
+Plan commands are required to keep `ok`, `status`, `error`, `result`, and `meta` deterministic and JSON-only when `--format json` is requested.
 
 ## Text Compatibility
 

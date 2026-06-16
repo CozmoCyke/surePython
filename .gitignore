@@ -1,6 +1,7 @@
 .deps/
 .vendor/
 .vendor3/
+.surepython/
 __pycache__/
 .pytest_cache/
 *.pyc

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import argparse
 import csv
 import io
@@ -22,6 +23,7 @@ from .codemods import (
 )
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
+from .plans import apply_plan, preview_plan, recover_plan, rollback_plan as rollback_transactional_plan
 from .protocol import (
     EXIT_INTERNAL,
     build_protocol_response,
@@ -217,6 +219,22 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
         }
     else:
         payload["tests"] = None
+    return payload
+
+
+def _build_plan_result_payload(result) -> dict[str, object]:
+    payload = dataclasses.asdict(result)
+    if payload.get("pytest_command") is not None:
+        payload["tests"] = {
+            "command": payload.pop("pytest_command"),
+            "exit_code": payload.pop("pytest_exit_code"),
+            "status": payload.pop("pytest_status"),
+        }
+    else:
+        payload["tests"] = None
+        payload.pop("pytest_command", None)
+        payload.pop("pytest_exit_code", None)
+        payload.pop("pytest_status", None)
     return payload
 
 
@@ -1251,6 +1269,181 @@ def _cmd_rollback(last: bool, operation_id: int | None, db: Path, dry_run: bool,
     return result.exit_code
 
 
+def _cmd_plan_preview(plan_path: Path, output_format: str) -> int:
+    try:
+        result = preview_plan(plan_path, project_root=Path.cwd())
+    except GitError as exc:
+        return _emit_error(
+            "plan",
+            exc,
+            output_format,
+            meta={"action": "preview", "format": output_format},
+        )
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="plan",
+                ok=True,
+                status="preview",
+                error=None,
+                result=_build_plan_result_payload(result),
+                meta={"action": "preview", "format": "json"},
+            )
+        )
+        return 0
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {Path.cwd()}")
+    print("Operation:\n  plan preview")
+    print(f"Plan:\n  {plan_path}")
+    print(f"Preview hash:\n  {result.preview_hash}")
+    print("Steps:")
+    for step in result.steps:
+        print(f"  {step['index'] + 1}. {step['operation']} {step['file']} ({step['status']})")
+    print("Diff:")
+    if result.final_diff.strip():
+        print(result.final_diff.rstrip())
+    return 0
+
+
+def _cmd_plan_apply(plan_path: Path, expected_preview_hash: str, test: bool, db: Path, output_format: str) -> int:
+    try:
+        result = apply_plan(
+            plan_path,
+            expected_preview_hash,
+            project_root=Path.cwd(),
+            db_path=db,
+            run_tests=test,
+        )
+    except GitError as exc:
+        return _emit_error(
+            "plan",
+            exc,
+            output_format,
+            meta={"action": "apply", "format": output_format, "test": test},
+        )
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="plan",
+                ok=True,
+                status=result.status,
+                error=None,
+                result=_build_plan_result_payload(result),
+                meta={"action": "apply", "format": "json", "test": test},
+            )
+        )
+        return 0
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {Path.cwd()}")
+    print("Operation:\n  plan apply")
+    print(f"Plan:\n  {plan_path}")
+    print(f"Preview hash:\n  {result.preview_hash}")
+    print("Applied:")
+    print(f"  Steps: {result.step_count}")
+    print(f"  Files: {result.file_count}")
+    print("Diff:")
+    if result.final_diff.strip():
+        print(result.final_diff.rstrip())
+    if result.pytest_command:
+        print("Test:")
+        print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.plan_operation_id}")
+    return 0
+
+
+def _cmd_plan_rollback(
+    last: bool,
+    plan_id: int | None,
+    db: Path,
+    dry_run: bool,
+    output_format: str,
+) -> int:
+    try:
+        result = rollback_transactional_plan(
+            db,
+            plan_id=plan_id,
+            last=last,
+            project_root=Path.cwd(),
+            dry_run=dry_run,
+        )
+    except GitError as exc:
+        return _emit_error(
+            "plan",
+            exc,
+            output_format,
+            meta={"action": "rollback", "dry_run": dry_run, "format": output_format},
+        )
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="plan",
+                ok=True,
+                status=result.status,
+                error=None,
+                result=_build_plan_result_payload(result),
+                meta={"action": "rollback", "dry_run": dry_run, "format": "json"},
+            )
+        )
+        return 0
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {Path.cwd()}")
+    print("Operation:\n  plan rollback")
+    print(f"Selector:\n  {result.selector_type} = {result.selector_value}")
+    print(f"Plan id:\n  {result.source_plan_operation_id}")
+    print("Mode:")
+    print("  Dry run; no files changed." if dry_run else "  Applied rollback.")
+    print("Rollback diff:")
+    if result.final_diff.strip():
+        print(result.final_diff.rstrip())
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.plan_operation_id}")
+    return 0
+
+
+def _cmd_plan_recover(output_format: str) -> int:
+    try:
+        result = recover_plan(project_root=Path.cwd())
+    except GitError as exc:
+        return _emit_error(
+            "plan",
+            exc,
+            output_format,
+            meta={"action": "recover", "format": output_format},
+        )
+
+    status = "recovered" if result.get("recovered") else result.get("status", "noop")
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="plan",
+                ok=True,
+                status=status,
+                error=None,
+                result=result,
+                meta={"action": "recover", "format": "json"},
+            )
+        )
+        return 0
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {Path.cwd()}")
+    print("Operation:\n  plan recover")
+    print(f"Status:\n  {status}")
+    print(f"Recovered:\n  {'yes' if result.get('recovered') else 'no'}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="surepython", description="SurePython v0.1")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1261,6 +1454,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     capabilities_parser = subparsers.add_parser("capabilities", help="Show supported operations")
     capabilities_parser.add_argument("--format", choices=["text", "json"], default="text")
+
+    plan_parser = subparsers.add_parser("plan", help="Transactional multi-operation plans")
+    plan_subparsers = plan_parser.add_subparsers(dest="plan_command", required=True)
+
+    plan_preview_parser = plan_subparsers.add_parser("preview", help="Preview a transactional plan")
+    plan_preview_parser.add_argument("plan_path", type=Path)
+    plan_preview_parser.add_argument("--format", choices=["text", "json"], default="text")
+
+    plan_apply_parser = plan_subparsers.add_parser("apply", help="Apply a transactional plan")
+    plan_apply_parser.add_argument("plan_path", type=Path)
+    plan_apply_parser.add_argument("--expect-preview-hash", required=True)
+    plan_apply_parser.add_argument("--test", action="store_true")
+    plan_apply_parser.add_argument("--db", type=Path, required=True)
+    plan_apply_parser.add_argument("--format", choices=["text", "json"], default="text")
+
+    plan_rollback_parser = plan_subparsers.add_parser("rollback", help="Rollback a transactional plan")
+    plan_rollback_selector = plan_rollback_parser.add_mutually_exclusive_group(required=True)
+    plan_rollback_selector.add_argument("--last", action="store_true")
+    plan_rollback_selector.add_argument("--id", type=int)
+    plan_rollback_parser.add_argument("--db", type=Path, required=True)
+    plan_rollback_parser.add_argument("--dry-run", action="store_true")
+    plan_rollback_parser.add_argument("--format", choices=["text", "json"], default="text")
+
+    plan_subparsers.add_parser("recover", help="Recover an interrupted transactional plan").add_argument(
+        "--format", choices=["text", "json"], default="text"
+    )
 
     add_parser = subparsers.add_parser("add-docstring", help="Add a skeleton docstring")
     add_parser.add_argument("file_path", type=Path)
@@ -1400,6 +1619,29 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_scan(args.path, args.format)
         if args.command == "capabilities":
             return _cmd_capabilities(args.format)
+        if args.command == "plan":
+            if args.plan_command == "preview":
+                return _cmd_plan_preview(args.plan_path, args.format)
+            if args.plan_command == "apply":
+                return _cmd_plan_apply(
+                    args.plan_path,
+                    args.expect_preview_hash,
+                    args.test,
+                    args.db,
+                    args.format,
+                )
+            if args.plan_command == "rollback":
+                return _cmd_plan_rollback(
+                    args.last,
+                    getattr(args, "id", None),
+                    args.db,
+                    args.dry_run,
+                    args.format,
+                )
+            if args.plan_command == "recover":
+                return _cmd_plan_recover(args.format)
+            parser.error("unknown plan command")
+            return 2
         if args.command == "add-docstring":
             return _cmd_add_docstring(
                 args.file_path,

@@ -25,11 +25,13 @@ It is not a general refactoring engine. It currently supports a deliberately sma
 - remove one exact top-level import statement from one module file after verifying the expected statement
 - add one explicit decorator expression to one targeted Python function, method, or class, only when the decorator is not already present and the target is unambiguous
 - remove one explicit decorator expression from one targeted Python function, method, or class after verifying the expected expression and position
+- preview, apply, rollback, or recover a transactional multi-operation plan that composes supported atomic edits
 
 The working pipeline is:
 
 ```text
 capabilities -> scan -> dry-run -> supported operation -> pytest -> SQLite log -> rollback
+capabilities -> scan -> plan preview -> plan apply -> pytest -> SQLite log -> plan rollback / plan recover
 ```
 
 This small scope is intentional. SurePython is designed to refuse when it cannot prove the operation.
@@ -263,6 +265,16 @@ python -m surepython rollback --id 42 --db .\surepython_lab.db --format json
 
 `rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operations. It supports either `--last` or `--id <operation_id>`, but never both.
 
+```powershell
+python -m surepython plan preview plan.json --format json
+python -m surepython plan apply plan.json --expect-preview-hash sha256:... --test --db .\surepython_plans.db --format json
+python -m surepython plan rollback --last --db .\surepython_plans.db --format json
+python -m surepython plan rollback --id 42 --db .\surepython_plans.db --format json
+python -m surepython plan recover --format json
+```
+
+`plan` is SurePython's transactional multi-operation layer. It previews a grouped JSON plan, applies the supported steps only when the preview hash matches, logs the plan as grouped SQLite records, and can roll back or recover an interrupted transaction. The plan file schema is documented in [docs/PLAN_SCHEMA_V1.md](docs/PLAN_SCHEMA_V1.md) and the workflow is documented in [docs/TRANSACTIONAL_PLANS.md](docs/TRANSACTIONAL_PLANS.md).
+
 ## Agent Protocol
 
 SurePython phase 2.1 adds a stable JSON protocol for agents.
@@ -401,6 +413,7 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 2.8: safe explicit decorator removal
 - Phase 2.9: safe explicit import removal
 - Phase 2.10: safe explicit docstring removal
+- Phase 3.0: transactional multi-operation plans and recovery
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 
@@ -410,6 +423,8 @@ The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later 
 - [Codex integration policy](docs/CODEX_INTEGRATION.md)
 - [Reusable AGENTS template](docs/AGENTS_TEMPLATE.md)
 - [Self-hosting policy](docs/SELF_HOSTING.md)
+- [Transactional plans](docs/TRANSACTIONAL_PLANS.md)
+- [Plan schema v1](docs/PLAN_SCHEMA_V1.md)
 - [JSON protocol](docs/PROTOCOL_JSON.md)
 - [Windows troubleshooting](docs/WINDOWS_TROUBLESHOOTING.md)
 
