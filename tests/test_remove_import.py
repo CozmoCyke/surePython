@@ -218,6 +218,7 @@ def test_remove_import_json_dry_run_is_structured_and_quiet(
     assert payload["result"]["target"]["kind"] == "module_import"
     assert payload["result"]["expected_import_statement"] == "import json"
     assert payload["result"]["removed_import_statement"].startswith("import json")
+    assert payload["result"]["import_binding"] == "json"
     assert payload["result"]["binding"] == "json"
     assert payload["result"]["match_count"] == 1
     assert payload["result"]["written"] is False

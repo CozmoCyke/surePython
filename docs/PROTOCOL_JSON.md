@@ -189,7 +189,7 @@ The current supported operations also include `remove-parameter-type`, which rem
 - Return annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Parameter annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Import insertion responses expose the selected `binding` name and exact `statement` in `target`
-- Import removal responses expose the expected statement, removed statement, binding, and match count in `target`
+- Import removal responses expose the expected statement, removed statement, `import_binding`, and match count in `target`
 - Decorator insertion responses expose the selected `symbol`, decorator expression, position, and target kind in `target`
 - `legacy/unverifiable` records are refused without writing
 

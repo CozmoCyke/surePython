@@ -165,6 +165,7 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
     if command == "remove-import":
         payload["expected_import_statement"] = result.expected_import_statement
         payload["removed_import_statement"] = result.removed_import_statement
+        payload["import_binding"] = result.import_binding
         payload["binding"] = result.import_binding
         payload["match_count"] = result.import_match_count
         payload["target"] = {
