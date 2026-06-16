@@ -31,6 +31,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "add-import",
         "add-decorator",
         "remove-decorator",
+        "remove-import",
     }
     assert operations["add-docstring"]["supports_rollback"] is True
     assert operations["add-return-type"]["targets"] == ["function", "method"]
@@ -96,6 +97,11 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     ]
     assert "DECORATOR_NOT_FOUND" in operations["remove-decorator"]["possible_error_codes"]
     assert "DECORATOR_POSITION_MISMATCH" in operations["remove-decorator"]["possible_error_codes"]
+    assert operations["remove-import"]["targets"] == ["module"]
+    assert operations["remove-import"]["required_arguments"] == ["file", "expect-statement"]
+    assert "IMPORT_NOT_FOUND" in operations["remove-import"]["possible_error_codes"]
+    assert "IMPORT_AMBIGUOUS" in operations["remove-import"]["possible_error_codes"]
+    assert "IMPORT_SCOPE_UNSUPPORTED" in operations["remove-import"]["possible_error_codes"]
     commands = {command["name"]: command for command in payload["commands"]}
     assert set(commands) == {"rollback"}
     assert commands["rollback"]["selectors"] == ["last", "id"]
@@ -115,6 +121,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     assert "add-parameter-type" in output
     assert "add-import" in output
     assert "add-decorator" in output
+    assert "remove-import" in output
     assert "rollback" in output
 
 

@@ -32,11 +32,12 @@ SurePython may:
 - add one explicit parameter annotation to one function or method
 - remove one explicit parameter annotation from one function or method after verifying the expected annotation
 - add one explicit top-level import statement with one binding to one module file
+- remove one explicit top-level import statement with one binding from one module file after verifying the expected statement
 - add one explicit decorator expression to one function, method, or class
 - remove one explicit decorator expression from one function, method, or class after verifying the expected expression and position
 - run pytest after a real edit
 - record the operation in SQLite
-- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, `add-decorator`, or `remove-decorator` operation
+- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
 - emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
@@ -117,6 +118,19 @@ python -m surepython add-import <file.py> --statement "<exact import statement>"
 python -m surepython add-import <file.py> --statement "<exact import statement>" --dry-run --format json
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db>
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db> --format json
+python -m surepython diff
+git status --short
+```
+
+For a supported import removal operation:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython scan <project-or-folder> --format json
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --dry-run
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --dry-run --format json
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --test --db <database.db>
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
@@ -238,6 +252,7 @@ Codex must not infer that SurePython can:
 - guarantee rollback for records created by older or inconsistent experiments
 - use `--id` without confirming the current project context
 - add imports automatically
+- remove imports automatically
 
 ## Current Product Boundary
 

@@ -87,7 +87,7 @@ On Windows, text-mode file operations can accidentally change:
 
 SurePython rollback now reconstructs bytes in memory and writes with byte APIs only after the restored hash matches `before_sha256`.
 
-The same byte-exact contract applies to `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `add-decorator`, and `remove-decorator` rollback paths.
+The same byte-exact contract applies to `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, and `remove-decorator` rollback paths.
 
 If rollback refuses with:
 

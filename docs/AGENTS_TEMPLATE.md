@@ -24,7 +24,7 @@ Current supported operation:
 
 Current supported rollback:
 
-- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, `add-decorator`, or `remove-decorator` operation
+- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
 
 Current machine-readable protocol:
 
@@ -82,6 +82,13 @@ python -m surepython add-import <file.py> --statement "<exact import statement>"
 python -m surepython add-import <file.py> --statement "<exact import statement>" --dry-run --format json
 ```
 
+For an import removal dry-run:
+
+```powershell
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --dry-run
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --dry-run --format json
+```
+
 For a decorator dry-run:
 
 ```powershell
@@ -104,6 +111,8 @@ python -m surepython remove-parameter-type <file.py> --function <symbol> --param
 python -m surepython remove-parameter-type <file.py> --function <symbol> --parameter <parameter> --expect-annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db>
 python -m surepython add-import <file.py> --statement "<exact import statement>" --test --db <database.db> --format json
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --test --db <database.db>
+python -m surepython remove-import <file.py> --expect-statement "<exact import statement>" --test --db <database.db> --format json
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db>
 python -m surepython add-decorator <file.py> --symbol <symbol> --decorator "<expression>" --position outermost --test --db <database.db> --format json
 python -m surepython remove-decorator <file.py> --symbol <symbol> --expect-decorator "<expression>" --expect-position outermost --test --db <database.db>
@@ -144,6 +153,7 @@ git status --short
 - Do not remove a decorator unless the expected expression and position both match.
 - Do not rewrite or sort existing imports.
 - Do not accept multi-binding, wildcard, or relative imports for add-import.
+- Do not remove imports automatically.
 - Do not use add-decorator to edit more than one target.
 - Do not use remove-decorator to edit more than one target.
 - Do not broaden `Class.method` into a global function edit.

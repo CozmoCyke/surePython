@@ -26,6 +26,10 @@ class RollbackResult:
     project_root: Path
     file_path: Path
     symbol: str
+    import_binding: str | None
+    import_match_count: int | None
+    expected_import_statement: str | None
+    removed_import_statement: str | None
     parameter: str | None
     parameter_kind: str | None
     parameter_annotation: str | None
@@ -338,6 +342,22 @@ def _remove_import_statement(module: cst.Module, record: OperationRecord) -> tup
     return module.with_changes(body=tuple(updated_body)), matched
 
 
+def _restore_removed_import_bytes(source_bytes: bytes, removed_bytes: bytes, *, expected_sha256: str) -> bytes:
+    bom = b"\xef\xbb\xbf" if source_bytes.startswith(b"\xef\xbb\xbf") else b""
+    body = source_bytes[len(bom) :]
+    lines = body.splitlines(keepends=True)
+    candidates: list[bytes] = []
+    for index in range(len(lines) + 1):
+        candidate = bom + b"".join([*lines[:index], removed_bytes, *lines[index:]])
+        if _sha256_bytes(candidate) == expected_sha256 and candidate not in candidates:
+            candidates.append(candidate)
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE")
+    raise GitError("Rollback result is ambiguous for the recorded import removal", code="LEGACY_UNVERIFIABLE")
+
+
 def _remove_decorator(module: cst.Module, record: OperationRecord) -> tuple[cst.Module, bool]:
     target_qname = record.symbol or ""
     target_decorator = record.decorator_expression or ""
@@ -436,6 +456,21 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: import_binding",
             code="ROLLBACK_NOT_AVAILABLE",
         )
+    if record.operation == "remove-import" and not record.expected_import_statement:
+        raise GitError(
+            "Operation is missing rollback data: expected_import_statement",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-import" and not record.removed_import_statement:
+        raise GitError(
+            "Operation is missing rollback data: removed_import_statement",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-import" and record.import_match_count is None:
+        raise GitError(
+            "Operation is missing rollback data: import_match_count",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
     if record.operation == "remove-decorator" and not record.decorator_expression:
         raise GitError(
             "Operation is missing rollback data: decorator_expression",
@@ -466,7 +501,7 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: decorator_target_kind",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "remove-parameter-type", "add-import", "add-decorator", "remove-decorator"}:
+    if record.operation not in {"add-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "remove-parameter-type", "add-import", "remove-import", "add-decorator", "remove-decorator"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -563,11 +598,129 @@ def _prepare_rollback_record(
         updated_module = module.visit(inserter)
         if not inserter.matched:
             raise GitError("Rollback target symbol was not modified", code="LEGACY_UNVERIFIABLE")
-    else:
+    elif record.operation == "add-import":
         updated_module, matched = _remove_import_statement(module, record)
         operation_label = "add-import"
         if not matched:
             raise GitError("Rollback target import was not modified", code="LEGACY_UNVERIFIABLE")
+    else:
+        operation_label = "remove-import"
+        removed_bytes = (record.removed_import_statement or "").encode("utf-8")
+        restored_bytes = _restore_removed_import_bytes(
+            source_bytes,
+            removed_bytes,
+            expected_sha256=record.before_sha256 or "",
+        )
+        restored_source, _, _ = _decode_python_bytes(restored_bytes)
+        candidate_sha = _sha256_bytes(restored_bytes)
+        preview_diff_text = _preview_diff(file_path, source, restored_source)
+        bytes_equal = candidate_sha == record.before_sha256
+        if not bytes_equal:
+            raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE")
+
+        status = "preview" if dry_run else "rolled_back"
+        message = (
+            f"Planned rollback of {operation_label} operation {record.operation_id}."
+            if dry_run
+            else f"Rolled back {operation_label} operation {record.operation_id}."
+        )
+        rollback_operation_id = None
+        restored_sha = current_sha if dry_run else candidate_sha
+
+        if not dry_run:
+            file_path.write_bytes(restored_bytes)
+            rollback_record = OperationRecord(
+                operation_id=None,
+                created_at=now_utc_iso(),
+                project_path=str(context.root),
+                file_path=str(file_path),
+                operation="rollback",
+                symbol=record.symbol,
+                import_statement=record.import_statement,
+                import_binding=record.import_binding,
+                decorator_expression=record.decorator_expression,
+                decorator_position=record.decorator_position,
+                decorator_target_kind=record.decorator_target_kind,
+                parameter=record.parameter,
+                parameter_kind=record.parameter_kind,
+                parameter_annotation=record.parameter_annotation,
+                expected_return_annotation=record.expected_return_annotation,
+                return_annotation=record.return_annotation,
+                target_kind=record.target_kind,
+                before_sha256=current_sha,
+                after_sha256=restored_sha,
+                git_diff=preview_diff_text,
+                pytest_command=None,
+                pytest_exit_code=None,
+                pytest_status=None,
+                status=status,
+                message=message,
+                source_operation_id=record.operation_id,
+            )
+            write_last_operation(rollback_record)
+            rollback_operation_id = insert_record(db_path, rollback_record)
+            write_last_operation(
+                OperationRecord(
+                    operation_id=rollback_operation_id,
+                    created_at=rollback_record.created_at,
+                    project_path=rollback_record.project_path,
+                    file_path=rollback_record.file_path,
+                    operation=rollback_record.operation,
+                    symbol=rollback_record.symbol,
+                    import_statement=rollback_record.import_statement,
+                    import_binding=rollback_record.import_binding,
+                    decorator_expression=rollback_record.decorator_expression,
+                    decorator_position=rollback_record.decorator_position,
+                    decorator_target_kind=rollback_record.decorator_target_kind,
+                    parameter=rollback_record.parameter,
+                    parameter_kind=rollback_record.parameter_kind,
+                    parameter_annotation=rollback_record.parameter_annotation,
+                    expected_return_annotation=rollback_record.expected_return_annotation,
+                    return_annotation=rollback_record.return_annotation,
+                    target_kind=rollback_record.target_kind,
+                    before_sha256=rollback_record.before_sha256,
+                    after_sha256=rollback_record.after_sha256,
+                    git_diff=rollback_record.git_diff,
+                    pytest_command=rollback_record.pytest_command,
+                    pytest_exit_code=rollback_record.pytest_exit_code,
+                    pytest_status=rollback_record.pytest_status,
+                    status=rollback_record.status,
+                    message=rollback_record.message,
+                    source_operation_id=rollback_record.source_operation_id,
+                )
+            )
+
+        result = RollbackResult(
+            db_path=db_path,
+            project_root=context.root,
+            file_path=file_path,
+            symbol=record.symbol or "",
+            import_binding=record.import_binding,
+            import_match_count=record.import_match_count,
+            expected_import_statement=record.expected_import_statement,
+            removed_import_statement=record.removed_import_statement,
+            parameter=record.parameter,
+            parameter_kind=record.parameter_kind,
+            parameter_annotation=record.parameter_annotation,
+            dry_run=dry_run,
+            selector_type=selector_type,
+            selector_value=selector_value,
+            before_sha256=current_sha,
+            after_sha256=restored_sha,
+            preview_diff_text=preview_diff_text,
+            status=status,
+            message=message,
+            source_operation=record.operation or "",
+            source_operation_id=record.operation_id,
+            rollback_operation_id=rollback_operation_id,
+            return_annotation=record.return_annotation,
+            target_kind=record.target_kind,
+            written=not dry_run,
+            logged=rollback_operation_id is not None,
+            bytes_equal=bytes_equal,
+            exit_code=0,
+        )
+        return result, restored_bytes
 
     restored_source = updated_module.code
     needle_text = (
@@ -668,6 +821,10 @@ def _prepare_rollback_record(
         project_root=context.root,
         file_path=file_path,
         symbol=record.symbol or "",
+        import_binding=record.import_binding,
+        import_match_count=record.import_match_count,
+        expected_import_statement=record.expected_import_statement,
+        removed_import_statement=record.removed_import_statement,
         dry_run=dry_run,
         selector_type=selector_type,
         selector_value=selector_value,

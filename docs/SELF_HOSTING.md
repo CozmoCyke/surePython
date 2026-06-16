@@ -2,7 +2,7 @@
 
 SurePython Phase 2.2 uses SurePython as a safety layer when the requested change already matches a supported operation.
 
-Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. Phase 2.5 extends it with `add-decorator`. Phase 2.6 adds `remove-return-type`. Phase 2.7 adds `remove-parameter-type`. Phase 2.8 adds `remove-decorator`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation, import, decorator, or return-annotation removal changes should use it.
+Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. Phase 2.5 extends it with `add-decorator`. Phase 2.6 adds `remove-return-type`. Phase 2.7 adds `remove-parameter-type`. Phase 2.8 adds `remove-decorator`. Phase 2.9 adds `remove-import`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation, import, decorator, return-annotation, or exact import-removal changes should use it.
 
 ## Principle
 
@@ -33,6 +33,7 @@ Use SurePython when the intended edit is one of the supported micro-modification
 - add an explicit annotation to a specific parameter on a function or method
 - remove an explicit annotation from a specific parameter on a function or method after verifying the expected annotation
 - add one explicit top-level import statement with a single binding to a module file
+- remove one explicit top-level import statement from a module file after verifying the expected statement
 - add one explicit decorator expression to a function, method, or class
 - remove one explicit decorator expression from a function, method, or class after verifying the expected expression and position
 
@@ -76,6 +77,8 @@ Phase 2.3 is an honest self-hosting boundary case:
 - the new `add-decorator` operation had to be built before it could be used
 - direct edits were therefore the correct fallback for the plumbing itself
 - the new `remove-decorator` operation had to be built before it could be used
+- direct edits were therefore the correct fallback for the plumbing itself
+- the new `remove-import` operation had to be built before it could be used
 - direct edits were therefore the correct fallback for the plumbing itself
 - the new `remove-return-type` operation had to be built before it could be used
 - direct edits were therefore the correct fallback for the plumbing itself

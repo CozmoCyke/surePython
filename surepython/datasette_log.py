@@ -29,6 +29,10 @@ class OperationRecord:
     message: str | None
     import_statement: str | None = None
     import_binding: str | None = None
+    expected_import_statement: str | None = None
+    removed_import_statement: str | None = None
+    removed_import_binding: str | None = None
+    import_match_count: int | None = None
     decorator_expression: str | None = None
     decorator_position: str | None = None
     decorator_target_kind: str | None = None
@@ -83,6 +87,10 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             symbol TEXT,
             import_statement TEXT,
             import_binding TEXT,
+            expected_import_statement TEXT,
+            removed_import_statement TEXT,
+            removed_import_binding TEXT,
+            import_match_count INTEGER,
             decorator_expression TEXT,
             decorator_position TEXT,
             decorator_target_kind TEXT,
@@ -125,6 +133,18 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         connection.commit()
     if "import_binding" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN import_binding TEXT")
+        connection.commit()
+    if "expected_import_statement" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN expected_import_statement TEXT")
+        connection.commit()
+    if "removed_import_statement" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN removed_import_statement TEXT")
+        connection.commit()
+    if "removed_import_binding" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN removed_import_binding TEXT")
+        connection.commit()
+    if "import_match_count" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN import_match_count INTEGER")
         connection.commit()
     if "decorator_expression" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN decorator_expression TEXT")
@@ -205,6 +225,10 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 symbol,
                 import_statement,
                 import_binding,
+                expected_import_statement,
+                removed_import_statement,
+                removed_import_binding,
+                import_match_count,
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
@@ -228,7 +252,7 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 parameter_kind,
                 expected_parameter_annotation,
                 parameter_annotation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -238,6 +262,10 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.symbol,
                 record.import_statement,
                 record.import_binding,
+                record.expected_import_statement,
+                record.removed_import_statement,
+                record.removed_import_binding,
+                record.import_match_count,
                 record.decorator_expression,
                 record.decorator_position,
                 record.decorator_target_kind,
@@ -269,6 +297,46 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
         connection.close()
 
 
+def _operation_record_from_row(row: tuple) -> OperationRecord:
+    return OperationRecord(
+        operation_id=row[0],
+        created_at=row[1],
+        project_path=row[2],
+        file_path=row[3],
+        operation=row[4],
+        symbol=row[5],
+        import_statement=row[6],
+        import_binding=row[7],
+        expected_import_statement=row[8],
+        removed_import_statement=row[9],
+        removed_import_binding=row[10],
+        import_match_count=row[11],
+        decorator_expression=row[12],
+        decorator_position=row[13],
+        decorator_target_kind=row[14],
+        expected_decorator_expression=row[15],
+        expected_decorator_position=row[16],
+        removed_decorator_expression=row[17],
+        removed_decorator_position=row[18],
+        parameter=row[19],
+        expected_return_annotation=row[20],
+        return_annotation=row[21],
+        before_sha256=row[22],
+        after_sha256=row[23],
+        git_diff=row[24],
+        pytest_command=row[25],
+        pytest_exit_code=row[26],
+        pytest_status=row[27],
+        status=row[28],
+        message=row[29],
+        source_operation_id=row[30],
+        target_kind=row[31],
+        parameter_kind=row[32],
+        expected_parameter_annotation=row[33],
+        parameter_annotation=row[34],
+    )
+
+
 def read_last_supported_operation(db_path: Path) -> OperationRecord:
     if not db_path.exists():
         raise FileNotFoundError(f"Database does not exist: {db_path}")
@@ -287,6 +355,10 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 symbol,
                 import_statement,
                 import_binding,
+                expected_import_statement,
+                removed_import_statement,
+                removed_import_binding,
+                import_match_count,
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
@@ -323,39 +395,7 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
     if row is None:
         raise FileNotFoundError("No applicable operation found")
 
-    return OperationRecord(
-        operation_id=row[0],
-        created_at=row[1],
-        project_path=row[2],
-        file_path=row[3],
-        operation=row[4],
-        symbol=row[5],
-        import_statement=row[6],
-        import_binding=row[7],
-        decorator_expression=row[8],
-        decorator_position=row[9],
-        decorator_target_kind=row[10],
-        expected_decorator_expression=row[11],
-        expected_decorator_position=row[12],
-        removed_decorator_expression=row[13],
-        removed_decorator_position=row[14],
-        parameter=row[15],
-        expected_return_annotation=row[16],
-        return_annotation=row[17],
-        before_sha256=row[18],
-        after_sha256=row[19],
-        git_diff=row[20],
-        pytest_command=row[21],
-        pytest_exit_code=row[22],
-        pytest_status=row[23],
-        status=row[24],
-        message=row[25],
-        source_operation_id=row[26],
-        target_kind=row[27],
-        parameter_kind=row[28],
-        expected_parameter_annotation=row[29],
-        parameter_annotation=row[30],
-    )
+    return _operation_record_from_row(row)
 
 
 def read_last_add_docstring_operation(db_path: Path) -> OperationRecord:
@@ -383,6 +423,10 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 symbol,
                 import_statement,
                 import_binding,
+                expected_import_statement,
+                removed_import_statement,
+                removed_import_binding,
+                import_match_count,
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
@@ -417,39 +461,7 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
     if row is None:
         raise FileNotFoundError(f"Operation not found: {operation_id}")
 
-    return OperationRecord(
-        operation_id=row[0],
-        created_at=row[1],
-        project_path=row[2],
-        file_path=row[3],
-        operation=row[4],
-        symbol=row[5],
-        import_statement=row[6],
-        import_binding=row[7],
-        decorator_expression=row[8],
-        decorator_position=row[9],
-        decorator_target_kind=row[10],
-        expected_decorator_expression=row[11],
-        expected_decorator_position=row[12],
-        removed_decorator_expression=row[13],
-        removed_decorator_position=row[14],
-        parameter=row[15],
-        expected_return_annotation=row[16],
-        return_annotation=row[17],
-        before_sha256=row[18],
-        after_sha256=row[19],
-        git_diff=row[20],
-        pytest_command=row[21],
-        pytest_exit_code=row[22],
-        pytest_status=row[23],
-        status=row[24],
-        message=row[25],
-        source_operation_id=row[26],
-        target_kind=row[27],
-        parameter_kind=row[28],
-        expected_parameter_annotation=row[29],
-        parameter_annotation=row[30],
-    )
+    return _operation_record_from_row(row)
 
 
 def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) -> OperationRecord | None:
@@ -470,6 +482,10 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 symbol,
                 import_statement,
                 import_binding,
+                expected_import_statement,
+                removed_import_statement,
+                removed_import_binding,
+                import_match_count,
                 decorator_expression,
                 decorator_position,
                 decorator_target_kind,
@@ -507,36 +523,4 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
     if row is None:
         return None
 
-    return OperationRecord(
-        operation_id=row[0],
-        created_at=row[1],
-        project_path=row[2],
-        file_path=row[3],
-        operation=row[4],
-        symbol=row[5],
-        import_statement=row[6],
-        import_binding=row[7],
-        decorator_expression=row[8],
-        decorator_position=row[9],
-        decorator_target_kind=row[10],
-        expected_decorator_expression=row[11],
-        expected_decorator_position=row[12],
-        removed_decorator_expression=row[13],
-        removed_decorator_position=row[14],
-        parameter=row[15],
-        expected_return_annotation=row[16],
-        return_annotation=row[17],
-        before_sha256=row[18],
-        after_sha256=row[19],
-        git_diff=row[20],
-        pytest_command=row[21],
-        pytest_exit_code=row[22],
-        pytest_status=row[23],
-        status=row[24],
-        message=row[25],
-        source_operation_id=row[26],
-        target_kind=row[27],
-        parameter_kind=row[28],
-        expected_parameter_annotation=row[29],
-        parameter_annotation=row[30],
-    )
+    return _operation_record_from_row(row)

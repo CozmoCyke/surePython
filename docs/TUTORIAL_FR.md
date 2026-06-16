@@ -8,7 +8,7 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui huit micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui neuf micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
@@ -16,6 +16,7 @@ SurePython reste volontairement petit. Il sécurise aujourd'hui huit micro-modif
 - ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
 - retirer une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si l'annotation attendue correspond exactement à l'annotation présente.
 - ajouter une instruction `import` explicite au niveau module, avec un seul binding, uniquement si ce binding n'existe pas déjà.
+- retirer une instruction `import` explicite au niveau module, uniquement si l'instruction attendue correspond exactement à l'instruction présente.
 - ajouter un décorateur explicite à une fonction, méthode ou classe ciblée, uniquement si ce décorateur n'est pas déjà présent et si la cible n'est pas ambiguë.
 - retirer un décorateur explicite d'une fonction, méthode ou classe ciblée, uniquement si l'expression attendue et la position attendue correspondent exactement.
 
@@ -283,9 +284,35 @@ Contrat :
 
 SurePython valide la syntaxe de l'instruction, pas le sens métier du module. L'agent doit fournir l'import exact à insérer.
 
-Les commandes `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `add-decorator`, `remove-decorator` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+## 4 sexies. Retirer un import explicite
 
-## 4 sexies. Ajouter un décorateur explicite
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-import tests\fixtures\sample_module.py --expect-statement "import json" --dry-run
+.\.venv\Scripts\python.exe -m surepython remove-import tests\fixtures\sample_module.py --expect-statement "from pathlib import Path" --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-import tests\fixtures\sample_module.py --expect-statement "from pathlib import Path" --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython remove-import tests\fixtures\sample_module.py --expect-statement "from pathlib import Path" --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- l'instruction attendue est fournie explicitement ;
+- exactement un import top-level est retiré ;
+- les imports imbriqués, relatifs, wildcard et multi-binding sont refusés ;
+- les ambiguïtés de structure sont refusées ;
+- aucun import n'est retiré automatiquement ;
+- le corps du module n'est pas réorganisé globalement ;
+- le rollback reste explicite et vérifié par hash.
+
+Les commandes `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, `remove-decorator` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+
+## 4 septies. Ajouter un décorateur explicite
 
 Prévisualisation :
 
@@ -311,7 +338,7 @@ Contrat :
 - aucun décorateur n'est deviné automatiquement ;
 - le rollback reste explicite et vérifié par hash.
 
-## 4 septies. Retirer un décorateur explicite
+## 4 octies. Retirer un décorateur explicite
 
 La suppression compare l'expression attendue et sa position avant d'enlever un seul décorateur :
 

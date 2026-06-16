@@ -173,6 +173,33 @@ class AddImportResult:
 
 
 @dataclass(frozen=True)
+class RemoveImportResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    target_kind: str
+    expected_import_statement: str
+    removed_import_statement: str
+    import_binding: str
+    import_match_count: int
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
+
+
+@dataclass(frozen=True)
 class AddDecoratorResult:
     file_path: Path
     project_root: Path
@@ -648,6 +675,117 @@ def _apply_import_statement(
     updated_body.insert(insertion_index, _clone_statement_line(statement_line))
     updated_module = module.with_changes(body=tuple(updated_body))
     return updated_module.code, requested_spec, statement_line
+
+
+def _import_binding_from_ast_node(node: ast.AST) -> str:
+    if isinstance(node, ast.Import):
+        alias = node.names[0]
+        return alias.asname or alias.name.split(".", 1)[0]
+    if isinstance(node, ast.ImportFrom):
+        alias = node.names[0]
+        return alias.asname or alias.name
+    raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID")
+
+
+def _remove_optional_following_blank_line(lines: list[str], line_end: int) -> int:
+    remove_end = line_end
+    if remove_end < len(lines) and lines[remove_end].strip() == "":
+        remove_end += 1
+    return remove_end
+
+
+def _remove_exact_import_statement(
+    source: str,
+    expected_import_node: cst.BaseSmallStatement,
+    expected_statement: str,
+    expected_ast_dump: str,
+) -> tuple[str, str, str, int, int]:
+    cst_module = cst.parse_module(source)
+    ast_module = ast.parse(source)
+    top_level_matches: list[tuple[int, ast.AST, cst.SimpleStatementLine]] = []
+
+    for index, (cst_stmt, ast_stmt) in enumerate(zip(cst_module.body, ast_module.body)):
+        if not isinstance(cst_stmt, cst.SimpleStatementLine):
+            continue
+        if len(cst_stmt.body) != 1:
+            continue
+        actual_node = cst_stmt.body[0]
+        if not isinstance(actual_node, (cst.Import, cst.ImportFrom)):
+            continue
+        if actual_node.deep_equals(expected_import_node):
+            top_level_matches.append((index, ast_stmt, cst_stmt))
+
+    nested_match_count = 0
+    for node in ast.walk(ast_module):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if ast.dump(node, include_attributes=False) == expected_ast_dump:
+            nested_match_count += 1
+    nested_match_count -= len(top_level_matches)
+    if nested_match_count < 0:
+        nested_match_count = 0
+
+    if not top_level_matches:
+        if nested_match_count > 0:
+            raise GitError(
+                "The expected import statement only exists outside module level.",
+                code="IMPORT_SCOPE_UNSUPPORTED",
+                details={
+                    "expected_import_statement": expected_statement,
+                    "match_count": 0,
+                    "nested_match_count": nested_match_count,
+                },
+            )
+        raise GitError(
+            "The expected import statement was not found at module level.",
+            code="IMPORT_NOT_FOUND",
+            details={"expected_import_statement": expected_statement, "match_count": 0},
+        )
+
+    if len(top_level_matches) > 1:
+        raise GitError(
+            "The expected import statement occurs more than once.",
+            code="IMPORT_AMBIGUOUS",
+            details={
+                "expected_import_statement": expected_statement,
+                "match_count": len(top_level_matches),
+            },
+        )
+
+    _, ast_stmt, _ = top_level_matches[0]
+    start_line = int(getattr(ast_stmt, "lineno", 0)) - 1
+    end_line = int(getattr(ast_stmt, "end_lineno", 0))
+    if start_line < 0 or end_line <= start_line:
+        raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID")
+
+    lines = source.splitlines(keepends=True)
+    if end_line > len(lines):
+        raise GitError("Import statement is invalid", code="IMPORT_STATEMENT_INVALID")
+
+    remove_end = _remove_optional_following_blank_line(lines, end_line)
+    removed_segment = "".join(lines[start_line:remove_end])
+    updated_source = "".join([*lines[:start_line], *lines[remove_end:]])
+    removed_binding = _import_binding_from_ast_node(ast_stmt)
+    return updated_source, removed_segment, removed_binding, len(top_level_matches), start_line
+
+
+def _select_restored_import_bytes(
+    source_bytes: bytes,
+    removed_bytes: bytes,
+    *,
+    expected_sha256: str,
+) -> bytes:
+    lines = source_bytes.splitlines(keepends=True)
+    candidates: list[bytes] = []
+    for index in range(len(lines) + 1):
+        candidate = b"".join([*lines[:index], removed_bytes, *lines[index:]])
+        if _sha256_bytes(candidate) == expected_sha256:
+            candidates.append(candidate)
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE")
+    raise GitError("Rollback result is ambiguous for the recorded import removal", code="LEGACY_UNVERIFIABLE")
 
 
 def _decorator_terminal_name(node: ast.AST) -> str | None:
@@ -1483,6 +1621,10 @@ def _write_state(
     parameter: str | None = None,
     import_statement: str | None = None,
     import_binding: str | None = None,
+    expected_import_statement: str | None = None,
+    removed_import_statement: str | None = None,
+    removed_import_binding: str | None = None,
+    import_match_count: int | None = None,
     decorator_expression: str | None = None,
     decorator_position: str | None = None,
     decorator_target_kind: str | None = None,
@@ -1514,6 +1656,10 @@ def _write_state(
         parameter=parameter,
         import_statement=import_statement,
         import_binding=import_binding,
+        expected_import_statement=expected_import_statement,
+        removed_import_statement=removed_import_statement,
+        removed_import_binding=removed_import_binding,
+        import_match_count=import_match_count,
         decorator_expression=decorator_expression,
         decorator_position=decorator_position,
         decorator_target_kind=decorator_target_kind,
@@ -1665,6 +1811,188 @@ def add_import(
         symbol=requested_spec.binding,
         binding=requested_spec.binding,
         statement=requested_spec.canonical_statement,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
+    )
+
+
+def remove_import(
+    file_path: Path,
+    expected_statement: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> RemoveImportResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
+
+    expected_spec, expected_statement_line = _parse_import_statement(expected_statement)
+    expected_node = expected_statement_line.body[0]
+    expected_ast = ast.parse(expected_statement, mode="exec").body[0]
+    expected_ast_dump = ast.dump(expected_ast, include_attributes=False)
+
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-import",
+            symbol=expected_spec.binding,
+            target_kind="module_import",
+            expected_import_statement=expected_spec.canonical_statement,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+        )
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
+
+    try:
+        updated_source, removed_segment, removed_binding, match_count, _ = _remove_exact_import_statement(
+            source,
+            expected_node,
+            expected_spec.canonical_statement,
+            expected_ast_dump,
+        )
+    except GitError as exc:
+        if exc.code in {"IMPORT_NOT_FOUND", "IMPORT_AMBIGUOUS", "IMPORT_SCOPE_UNSUPPORTED"}:
+            _write_state(
+                project_root=context.root,
+                file_path=file_path,
+                db_path=db_path,
+                operation="remove-import",
+                symbol=expected_spec.binding,
+                target_kind="module_import",
+                expected_import_statement=expected_spec.canonical_statement,
+                import_match_count=int(exc.details.get("match_count", 0)) if exc.details else 0,
+                before_sha256=before_sha256,
+                after_sha256=None,
+                git_diff_text=None,
+                pytest_command=None,
+                pytest_exit_code=None,
+                pytest_status=None,
+                status="refused",
+                message=str(exc),
+            )
+        raise
+
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        updated_bytes = _encode_python_text(updated_source, bom, encoding)
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = (
+        f"Planned import removal: {expected_spec.canonical_statement}."
+        if dry_run
+        else f"Removed import statement: {expected_spec.canonical_statement}."
+    )
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    operation_id: int | None = None
+    if not dry_run:
+        operation_id = _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-import",
+            symbol=expected_spec.binding,
+            target_kind="module_import",
+            expected_import_statement=expected_spec.canonical_statement,
+            removed_import_statement=removed_segment,
+            removed_import_binding=removed_binding,
+            import_match_count=match_count,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-import",
+            symbol=expected_spec.binding,
+            target_kind="module_import",
+            expected_import_statement=expected_spec.canonical_statement,
+            removed_import_statement=removed_segment,
+            removed_import_binding=removed_binding,
+            import_match_count=match_count,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+        )
+
+    logged = operation_id is not None
+    return RemoveImportResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=expected_spec.binding,
+        target_kind="module_import",
+        expected_import_statement=expected_spec.canonical_statement,
+        removed_import_statement=removed_segment,
+        import_binding=removed_binding,
+        import_match_count=match_count,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         preview_diff_text=preview_diff_text if dry_run else None,

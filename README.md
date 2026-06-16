@@ -21,6 +21,7 @@ It is not a general refactoring engine. It currently supports a deliberately sma
 - add one explicit annotation to one targeted Python parameter, only when that parameter has no existing annotation
 - remove one explicit annotation from one targeted Python parameter after verifying the expected annotation
 - add one explicit top-level import statement with a single binding to one module file, only when that binding does not already exist
+- remove one exact top-level import statement from one module file after verifying the expected statement
 - add one explicit decorator expression to one targeted Python function, method, or class, only when the decorator is not already present and the target is unambiguous
 - remove one explicit decorator expression from one targeted Python function, method, or class after verifying the expected expression and position
 
@@ -31,6 +32,7 @@ capabilities -> scan -> dry-run -> supported operation -> pytest -> SQLite log -
 ```
 
 This small scope is intentional. SurePython is designed to refuse when it cannot prove the operation.
+The current supported edit set also includes safe explicit import removal by exact statement match.
 
 ## Trust Model
 
@@ -186,6 +188,22 @@ python -m surepython add-import parser.py --statement "from pathlib import Path"
 - `from typing import Any as TypingAny`
 
 It refuses multi-binding imports, wildcard imports, relative imports, and binding conflicts. Codex or a human supplies the exact import statement; SurePython does not infer it.
+
+```powershell
+python -m surepython remove-import parser.py --expect-statement "import json" --dry-run
+python -m surepython remove-import parser.py --expect-statement "from pathlib import Path" --test --db .\surepython_lab.db
+python -m surepython remove-import parser.py --expect-statement "from pathlib import Path" --dry-run --format json
+```
+
+`remove-import` accepts:
+
+- `--expect-statement "<exact import statement>"`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+`remove-import` removes exactly one module-level import statement that matches the expected statement structurally and textually. It refuses nested-only matches, ambiguous matches, wildcard imports, relative imports, and multi-binding or syntax-invalid statements.
 
 ```powershell
 python -m surepython add-decorator src\service.py --symbol UserService.load_user --decorator "staticmethod" --position outermost --dry-run

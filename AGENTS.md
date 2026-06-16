@@ -14,7 +14,7 @@ When the intended change matches a supported SurePython operation:
 6. Do not replace this operation with a direct manual edit.
 7. Never bypass a SurePython refusal.
 
-Supported write operations currently include add-docstring, add-return-type, remove-return-type, add-parameter-type, and add-import.
+Supported write operations currently include add-docstring, add-return-type, remove-return-type, add-parameter-type, add-import, and remove-import.
 Supported write operations currently also include add-decorator.
 Supported write operations currently also include remove-parameter-type.
 Supported write operations currently also include remove-decorator.

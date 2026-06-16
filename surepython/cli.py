@@ -14,6 +14,7 @@ from .codemods import (
     add_import,
     add_parameter_type,
     add_return_type,
+    remove_import,
     remove_parameter_type,
     remove_return_type,
     remove_decorator,
@@ -74,6 +75,15 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
             target["parameter_annotation"] = result.parameter_annotation
         if result.return_annotation is not None:
             target["return_annotation"] = result.return_annotation
+        if result.expected_import_statement is not None:
+            target["kind"] = "module_import"
+            target["expected_import_statement"] = result.expected_import_statement
+        if result.removed_import_statement is not None:
+            target["removed_import_statement"] = result.removed_import_statement
+        if result.import_binding is not None:
+            target["import_binding"] = result.import_binding
+        if result.import_match_count is not None:
+            target["import_match_count"] = result.import_match_count
         payload = {
             "operation": "rollback",
             "selector": {
@@ -97,6 +107,14 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
             payload["return_annotation"] = result.return_annotation
         if result.parameter_annotation is not None:
             payload["parameter_annotation"] = result.parameter_annotation
+        if result.expected_import_statement is not None:
+            payload["expected_import_statement"] = result.expected_import_statement
+        if result.removed_import_statement is not None:
+            payload["removed_import_statement"] = result.removed_import_statement
+        if result.import_binding is not None:
+            payload["import_binding"] = result.import_binding
+        if result.import_match_count is not None:
+            payload["import_match_count"] = result.import_match_count
         if output_format == "json":
             return payload
         return payload
@@ -143,6 +161,15 @@ def _build_operation_result_payload(command: str, result, output_format: str, dr
         payload["target"] = {
             "file": result.file_path.name,
             "binding": result.binding,
+        }
+    if command == "remove-import":
+        payload["expected_import_statement"] = result.expected_import_statement
+        payload["removed_import_statement"] = result.removed_import_statement
+        payload["binding"] = result.import_binding
+        payload["match_count"] = result.import_match_count
+        payload["target"] = {
+            "file": result.file_path.name,
+            "kind": result.target_kind,
         }
     if command == "add-decorator":
         payload["decorator"] = result.decorator
@@ -389,6 +416,89 @@ def _cmd_add_import(
     else:
         print("Applied:")
         print("  Added import statement.")
+        print("Diff:")
+        if result.git_stat.strip():
+            print(result.git_stat.rstrip())
+        if result.git_diff_text.strip():
+            print(result.git_diff_text.rstrip())
+    if result.pytest_command:
+        print("Test:")
+        print(f"  {result.pytest_command} -> exit {result.pytest_exit_code}")
+        if result.pytest_status:
+            print(f"  Status: {result.pytest_status}")
+    if result.logged:
+        print("Log:")
+        print(f"  SQLite: {result.db_path}")
+    print("Next:")
+    print("  Run:")
+    print("    surepython diff")
+    print("    surepython log --db <path>")
+    return result.exit_code
+
+
+def _cmd_remove_import(
+    file_path: Path,
+    expect_statement: str,
+    test: bool,
+    test_command: str | None,
+    dry_run: bool,
+    db: Path | None,
+    output_format: str,
+) -> int:
+    try:
+        result = remove_import(
+            file_path,
+            expect_statement,
+            project_root=file_path.parent,
+            db_path=db,
+            run_tests=test,
+            test_command=test_command,
+            dry_run=dry_run,
+        )
+    except GitError as exc:
+        return _emit_error("remove-import", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
+
+    if output_format == "json":
+        _print_json_response(
+            build_protocol_response(
+                command="remove-import",
+                ok=result.exit_code == 0,
+                status="preview" if dry_run else result.status,
+                error=None
+                if result.exit_code == 0
+                else {
+                    "code": "TESTS_FAILED",
+                    "message": "pytest exited with a non-zero status",
+                    "details": {"exit_code": result.pytest_exit_code},
+                },
+                result=_build_operation_result_payload("remove-import", result, output_format, dry_run),
+                meta={"dry_run": dry_run, "format": "json"},
+            )
+        )
+        return result.exit_code
+
+    print("SurePython v0.1")
+    print(f"Project:\n  {result.project_root}")
+    print("Operation:\n  remove-import")
+    print(f"Target:\n  {result.file_path.name}::module_import")
+    print(f"Expected statement:\n  {result.expected_import_statement}")
+    print(f"Removed statement:\n  {result.removed_import_statement}")
+    print(f"Binding:\n  {result.import_binding}")
+    print(f"Match count:\n  {result.import_match_count}")
+    print("Safety:")
+    print("  Git repository: OK")
+    print("  Git clean: OK")
+    print("  File inside project: OK")
+    print("  LibCST parse: OK")
+    if dry_run:
+        print("Mode:")
+        print("  Dry run; no files changed.")
+        print("Preview diff:")
+        if result.preview_diff_text:
+            print(result.preview_diff_text.rstrip())
+    else:
+        print("Applied:")
+        print("  Removed import statement.")
         print("Diff:")
         if result.git_stat.strip():
             print(result.git_stat.rstrip())
@@ -1059,6 +1169,18 @@ def build_parser() -> argparse.ArgumentParser:
     import_parser.add_argument("--db", type=Path)
     import_parser.add_argument("--format", choices=["text", "json"], default="text")
 
+    remove_import_parser = subparsers.add_parser(
+        "remove-import",
+        help="Remove an explicit module-level import statement after verifying the expected statement",
+    )
+    remove_import_parser.add_argument("file_path", type=Path)
+    remove_import_parser.add_argument("--expect-statement", required=True)
+    remove_import_parser.add_argument("--test", action="store_true")
+    remove_import_parser.add_argument("--test-command")
+    remove_import_parser.add_argument("--dry-run", action="store_true")
+    remove_import_parser.add_argument("--db", type=Path)
+    remove_import_parser.add_argument("--format", choices=["text", "json"], default="text")
+
     decorator_parser = subparsers.add_parser("add-decorator", help="Add an explicit decorator")
     decorator_parser.add_argument("file_path", type=Path)
     decorator_parser.add_argument("--symbol")
@@ -1215,6 +1337,16 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_add_import(
                 args.file_path,
                 args.statement,
+                args.test,
+                args.test_command,
+                args.dry_run,
+                args.db,
+                args.format,
+            )
+        if args.command == "remove-import":
+            return _cmd_remove_import(
+                args.file_path,
+                args.expect_statement,
                 args.test,
                 args.test_command,
                 args.dry_run,

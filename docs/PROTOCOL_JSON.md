@@ -16,6 +16,7 @@ The JSON protocol is stable for the commands supported in this phase:
 - `add-parameter-type`
 - `remove-parameter-type`
 - `add-import`
+- `remove-import`
 - `add-decorator`
 - `remove-decorator`
 - `rollback`
@@ -101,6 +102,9 @@ Common codes include:
 - `IMPORT_ALREADY_EXISTS`
 - `IMPORT_BINDING_CONFLICT`
 - `IMPORT_PLACEMENT_UNSUPPORTED`
+- `IMPORT_NOT_FOUND`
+- `IMPORT_AMBIGUOUS`
+- `IMPORT_SCOPE_UNSUPPORTED`
 - `UNSUPPORTED_OPERATION`
 - `UNKNOWN_SQLITE_OPERATION`
 - `HASH_MISMATCH`
@@ -170,6 +174,7 @@ Each command declares:
 - `status`
 
 The current supported operations now include `add-import`, which is a top-level module edit that adds exactly one explicit import statement with one binding.
+The current supported operations also include `remove-import`, which removes exactly one explicit module-level import statement after verifying the expected statement.
 The current supported operations also include `add-decorator`, which adds exactly one explicit decorator expression to one supported function, method, or class.
 The current supported operations also include `remove-return-type`, which removes exactly one explicit return annotation after verifying the expected annotation exactly.
 The current supported operations also include `remove-parameter-type`, which removes exactly one explicit parameter annotation after verifying the expected annotation exactly.
@@ -184,6 +189,7 @@ The current supported operations also include `remove-parameter-type`, which rem
 - Return annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Parameter annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Import insertion responses expose the selected `binding` name and exact `statement` in `target`
+- Import removal responses expose the expected statement, removed statement, binding, and match count in `target`
 - Decorator insertion responses expose the selected `symbol`, decorator expression, position, and target kind in `target`
 - `legacy/unverifiable` records are refused without writing
 
