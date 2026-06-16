@@ -396,6 +396,11 @@ def _encode_python_text(text: str, bom: bytes, encoding: str) -> bytes:
     return bom + text.encode(encoding)
 
 
+def _normalize_python_newlines(text: str, source_text: str) -> str:
+    newline = "\r\n" if "\r\n" in source_text else "\n"
+    return text.replace("\r\n", "\n").replace("\n", newline)
+
+
 def _validate_annotation_expression(annotation: str, *, empty_code: str) -> cst.BaseExpression:
     if not annotation.strip():
         raise GitError("Annotation is empty", code=empty_code)
@@ -2602,8 +2607,9 @@ def add_docstring(
     records = scan_file(file_path)
     target_qname = _resolve_target(records, target)
 
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
     before_sha256 = sha256_file(file_path)
-    source = file_path.read_text(encoding="utf-8")
 
     try:
         cst.parse_module(source)
@@ -2688,13 +2694,14 @@ def add_docstring(
         )
         raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
 
-    updated_source = updated_module.code
+    updated_source = _normalize_python_newlines(updated_module.code, source)
+    updated_bytes = _encode_python_text(updated_source, bom, encoding)
     preview_diff_text = _preview_diff(file_path, source, updated_source)
 
     if dry_run:
         after_sha256 = before_sha256
     else:
-        file_path.write_text(updated_source, encoding="utf-8")
+        file_path.write_bytes(updated_bytes)
         after_sha256 = sha256_file(file_path)
 
     stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
@@ -2909,6 +2916,7 @@ def remove_docstring(
     removed_docstring_text = transformer.removed_docstring_text or ""
     removed_docstring_source = transformer.removed_docstring_source or ""
     updated_source = updated_module.code
+    updated_source = _normalize_python_newlines(updated_source, source)
     updated_bytes = _encode_python_text(updated_source, bom, encoding)
     preview_diff_text = _preview_diff(file_path, source, updated_source)
 

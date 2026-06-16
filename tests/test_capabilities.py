@@ -35,6 +35,17 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
         "remove-import",
     }
     assert operations["add-docstring"]["supports_rollback"] is True
+    assert operations["remove-docstring"]["targets"] == ["module", "class", "function", "method"]
+    assert operations["remove-docstring"]["required_arguments"] == [
+        "file",
+        "symbol",
+        "expect-docstring",
+    ]
+    assert "DOCSTRING_REQUIRED" in operations["remove-docstring"]["possible_error_codes"]
+    assert "DOCSTRING_NOT_FOUND" in operations["remove-docstring"]["possible_error_codes"]
+    assert "DOCSTRING_MISMATCH" in operations["remove-docstring"]["possible_error_codes"]
+    assert "DOCSTRING_INLINE_SUITE_UNSUPPORTED" in operations["remove-docstring"]["possible_error_codes"]
+    assert "DOCSTRING_REPRESENTATION_UNSUPPORTED" not in operations["remove-docstring"]["possible_error_codes"]
     assert operations["add-return-type"]["targets"] == ["function", "method"]
     assert operations["add-return-type"]["required_arguments"] == [
         "file",

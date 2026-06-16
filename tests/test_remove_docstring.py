@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from surepython.cli import main
-from surepython.codemods import remove_docstring
+from surepython.codemods import add_docstring, remove_docstring
 from surepython.git_tools import GitError
 from surepython.rollback import rollback_by_id
 
@@ -155,6 +155,48 @@ def test_remove_docstring_supports_module_docstring_and_preserves_header(
     assert "import json" in text
 
 
+def test_remove_docstring_module_only_does_not_insert_pass(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text('"""Module documentation."""\n', encoding="utf-8")
+    init_git_repo(root)
+
+    result = remove_docstring(sample, "module", "Module documentation.", project_root=root)
+    text = sample.read_text(encoding="utf-8")
+
+    assert result.target_kind == "module"
+    assert "pass" not in text
+    assert '"""Module documentation."""' not in text
+
+
+def test_remove_docstring_supports_multiline_docstring_logic(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text(
+        "def run():\n"
+        "    \"\"\"First line.\n"
+        "    Second line.\n"
+        "    \"\"\"\n"
+        "    return 1\n",
+        encoding="utf-8",
+    )
+    init_git_repo(root)
+
+    result = remove_docstring(
+        sample,
+        "run",
+        "First line.\n    Second line.\n    ",
+        project_root=root,
+    )
+
+    assert result.removed_docstring_text == "First line.\n    Second line.\n    "
+    assert '"""First line.' not in sample.read_text(encoding="utf-8")
+
+
 def test_remove_docstring_preserves_comments_and_removes_inline_comment(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -234,6 +276,20 @@ def test_remove_docstring_refuses_inline_suite_docstring(tmp_path: Path, monkeyp
         remove_docstring(sample, "run", "Run.", project_root=root)
 
     assert excinfo.value.code == "DOCSTRING_INLINE_SUITE_UNSUPPORTED"
+
+
+def test_remove_docstring_refuses_empty_expected_text(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text("def run():\n    \"\"\"Run.\"\"\"\n    return 1\n", encoding="utf-8")
+    init_git_repo(root)
+
+    with pytest.raises(GitError) as excinfo:
+        remove_docstring(sample, "run", "   ", project_root=root)
+
+    assert excinfo.value.code == "DOCSTRING_REQUIRED"
 
 
 def test_remove_docstring_json_dry_run_is_structured_and_quiet(
@@ -360,3 +416,56 @@ def test_remove_docstring_rollback_restores_bom_crlf_exactly(
     with pytest.raises(GitError, match="already been rolled back"):
         rollback_by_id(db_path, operation_id, current_root=root)
 
+
+def test_remove_docstring_rollback_restores_pass_insertion_exactly(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    original = b"def placeholder():\n    \"\"\"Not implemented yet.\"\"\"\n"
+    sample.write_bytes(original)
+    init_git_repo(root)
+    db_path = tmp_path / "surepython.db"
+
+    result = remove_docstring(
+        sample,
+        "placeholder",
+        "Not implemented yet.",
+        project_root=root,
+        db_path=db_path,
+    )
+    commit_all(root, "remove placeholder docstring")
+    operation_id = result.operation_id
+    assert operation_id is not None
+    assert "pass" in sample.read_text(encoding="utf-8")
+
+    rollback_result = rollback_by_id(db_path, operation_id, current_root=root)
+    assert rollback_result.status == "rolled_back"
+    assert sample.read_bytes() == original
+    commit_all(root, "restore placeholder docstring")
+
+    with pytest.raises(GitError, match="already been rolled back"):
+        rollback_by_id(db_path, operation_id, current_root=root)
+
+
+def test_add_then_remove_docstring_returns_to_original_bytes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    original = b"class Service:\n    def build(self):\n        return 1\n"
+    sample.write_bytes(original)
+    init_git_repo(root)
+
+    add_docstring(sample, "Service.build", project_root=root)
+    commit_all(root, "apply docstring")
+    after_add = sample.read_bytes()
+    assert after_add != original
+
+    remove_docstring(sample, "Service.build", "TODO: Document this function.", project_root=root)
+
+    assert sample.read_bytes() == original
