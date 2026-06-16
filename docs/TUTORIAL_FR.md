@@ -8,9 +8,10 @@ Objectif :
 capabilities -> scanner -> prévisualiser -> appliquer -> tester -> journaliser -> rollback
 ```
 
-SurePython reste volontairement petit. Il sécurise aujourd'hui neuf micro-modifications :
+SurePython reste volontairement petit. Il sécurise aujourd'hui dix micro-modifications :
 
 - ajouter une docstring squelette à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà de docstring ;
+- retirer une docstring explicite d'un module, d'une classe, d'une fonction ou d'une méthode ciblée, uniquement si le texte attendu correspond exactement ;
 - ajouter une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si elle n'a pas déjà d'annotation de retour.
 - retirer une annotation de retour explicite à une fonction ou méthode Python ciblée, uniquement si l'annotation correspond exactement à celle attendue ;
 - ajouter une annotation de paramètre explicite à une fonction ou méthode Python ciblée, uniquement si le paramètre n'a pas déjà d'annotation.
@@ -144,7 +145,32 @@ Effets attendus :
 
 Si pytest échoue, SurePython retourne un code d'erreur. La modification reste appliquée ; il n'y a pas de rollback automatique implicite.
 
-## 4 bis. Ajouter une annotation de retour explicite
+## 4 bis. Retirer une docstring explicite
+
+Prévisualisation :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --dry-run
+.\.venv\Scripts\python.exe -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --dry-run --format json
+```
+
+Application réelle avec tests et log :
+
+```powershell
+.\.venv\Scripts\python.exe -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --test --db .\surepython_lab.db
+.\.venv\Scripts\python.exe -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --test --db .\surepython_lab.db --format json
+```
+
+Contrat :
+
+- le texte attendu de la docstring est fourni explicitement ;
+- le module, la classe, la fonction ou la méthode ciblée doit avoir une docstring exacte correspondante ;
+- une docstring absente, déplacée ou différente est refusée ;
+- les suites inline ne sont pas supportées ;
+- le corps de la fonction ou de la classe n'est pas modifié autrement ;
+- le rollback reste explicite et vérifié par hash exact.
+
+## 4 ter. Ajouter une annotation de retour explicite
 
 Prévisualisation :
 
@@ -310,7 +336,7 @@ Contrat :
 - le corps du module n'est pas réorganisé globalement ;
 - le rollback reste explicite et vérifié par hash.
 
-Les commandes `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, `remove-decorator` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
+Les commandes `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, `remove-decorator` et `rollback` peuvent aussi retourner un JSON stable avec `--format json`. Dans ce mode, les opérations réelles exposent un `operation_id` SQLite, alors que les dry-runs renvoient `operation_id: null`.
 
 ## 4 septies. Ajouter un décorateur explicite
 

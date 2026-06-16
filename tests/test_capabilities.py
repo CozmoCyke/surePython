@@ -24,6 +24,7 @@ def test_capabilities_json_lists_supported_operations(capsys) -> None:
     operations = {operation["name"]: operation for operation in payload["operations"]}
     assert set(operations) == {
         "add-docstring",
+        "remove-docstring",
         "add-return-type",
         "remove-return-type",
         "add-parameter-type",
@@ -115,6 +116,7 @@ def test_capabilities_text_is_human_readable(capsys) -> None:
     assert exit_code == 0
     output = capsys.readouterr().out
     assert "add-docstring" in output
+    assert "remove-docstring" in output
     assert "add-return-type" in output
     assert "remove-return-type" in output
     assert "remove-parameter-type" in output

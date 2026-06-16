@@ -16,6 +16,7 @@ SurePython is a local CLI for controlled Python micro-modifications.
 It is not a general refactoring engine. It currently supports a deliberately small set of edits:
 
 - add one skeleton docstring to one targeted Python function or method, only when the target has no existing docstring
+- remove one exact docstring from one targeted Python module, class, function, or method after verifying the expected logical text
 - add one explicit return annotation to one targeted Python function or method, only when the target has no existing return annotation
 - remove one explicit return annotation from one targeted Python function or method after verifying the expected annotation
 - add one explicit annotation to one targeted Python parameter, only when that parameter has no existing annotation
@@ -32,7 +33,7 @@ capabilities -> scan -> dry-run -> supported operation -> pytest -> SQLite log -
 ```
 
 This small scope is intentional. SurePython is designed to refuse when it cannot prove the operation.
-The current supported edit set also includes safe explicit import removal by exact statement match.
+The current supported edit set also includes safe explicit import removal by exact statement match and safe explicit docstring removal by expected text match.
 
 ## Trust Model
 
@@ -87,6 +88,23 @@ python -m surepython add-docstring tests\fixtures\sample_module.py --function Sa
 - `--test`
 - `--test-command "<command>"`
 - `--db <sqlite-path>`
+
+```powershell
+python -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --dry-run
+python -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --test --db .\surepython_lab.db
+python -m surepython remove-docstring tests\fixtures\sample_module.py --symbol SampleClass.sample_method --expect-docstring "Build a service." --dry-run --format json
+```
+
+`remove-docstring` accepts:
+
+- `--symbol NAME`
+- `--expect-docstring "<exact docstring text>"`
+- `--dry-run`
+- `--test`
+- `--test-command "<command>"`
+- `--db <sqlite-path>`
+
+`remove-docstring` removes exactly one docstring from one targeted module, class, function, or method after verifying the expected logical docstring text. It refuses when the docstring is missing, mismatched, unsupported, or represented in an inline suite.
 
 ```powershell
 python -m surepython add-return-type src\service.py --function UserService.load_user --annotation "User | None" --dry-run
@@ -243,7 +261,7 @@ python -m surepython rollback --last --db .\surepython_lab.db --format json
 python -m surepython rollback --id 42 --db .\surepython_lab.db --format json
 ```
 
-`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, or `add-decorator` operations. It supports either `--last` or `--id <operation_id>`, but never both.
+`rollback` is explicit, database-backed, and limited to compatible logged `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operations. It supports either `--last` or `--id <operation_id>`, but never both.
 
 ## Agent Protocol
 
@@ -349,7 +367,7 @@ Rollback supports this narrow case:
 
 ```text
 latest compatible SQLite record or selected operation id
-operation in add-docstring/add-return-type/remove-return-type/add-parameter-type/remove-parameter-type/add-import/add-decorator
+operation in add-docstring/remove-docstring/add-return-type/remove-return-type/add-parameter-type/remove-parameter-type/add-import/remove-import/add-decorator/remove-decorator
 status in applied/tested/failed
 current file hash = logged after_sha256
 restored bytes hash = logged before_sha256
@@ -380,6 +398,9 @@ Historical records can be `legacy/unverifiable` when their `before_sha256` canno
 - Phase 2.5: safe explicit decorator insertion
 - Phase 2.6: safe return annotation removal by explicit comparison
 - Phase 2.7: safe parameter annotation removal by explicit comparison
+- Phase 2.8: safe explicit decorator removal
+- Phase 2.9: safe explicit import removal
+- Phase 2.10: safe explicit docstring removal
 
 The public tag `v0.1.2-public-preview` remains an earlier frozen preview. Later commits document and extend the phase 1 line without moving that tag.
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import difflib
+import base64
 import subprocess
 import sys
 from dataclasses import dataclass, replace
@@ -34,6 +35,33 @@ class AddDocstringResult:
     project_root: Path
     db_path: Path | None
     symbol: str
+    before_sha256: str
+    after_sha256: str
+    preview_diff_text: str | None
+    git_stat: str
+    git_diff_text: str
+    pytest_command: str | None
+    pytest_exit_code: int | None
+    pytest_status: str | None
+    status: str
+    message: str
+    operation_id: int | None
+    logged: bool
+    rollback_available: bool
+    exit_code: int
+
+
+@dataclass(frozen=True)
+class RemoveDocstringResult:
+    file_path: Path
+    project_root: Path
+    db_path: Path | None
+    symbol: str
+    target_kind: str
+    expected_docstring_text: str
+    removed_docstring_text: str
+    removed_docstring_source: str
+    docstring_replacement_statement: str | None
     before_sha256: str
     after_sha256: str
     preview_diff_text: str | None
@@ -293,6 +321,47 @@ def _resolve_target(records, target: str) -> str:
     if len(matches) > 1:
         raise GitError("Target symbol is ambiguous", code="TARGET_AMBIGUOUS")
     return matches[0].qualified_name
+
+
+def _resolve_docstring_target(records, target: str) -> tuple[str, str]:
+    if target == "module":
+        return "module", "module"
+
+    if "." in target:
+        matches = [
+            record
+            for record in records
+            if record.qualified_name == target and record.type in {"function", "method", "class"}
+        ]
+    else:
+        matches = [
+            record
+            for record in records
+            if record.qualified_name.split(".")[-1] == target
+            and record.type in {"function", "method", "class"}
+        ]
+    if not matches:
+        raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
+    if len(matches) > 1:
+        raise GitError("Target symbol is ambiguous", code="TARGET_AMBIGUOUS")
+    return matches[0].type, matches[0].qualified_name
+
+
+def _docstring_value_from_ast_node(node: ast.AST) -> str | None:
+    return ast.get_docstring(node, clean=False)
+
+
+def _docstring_statement_source(module: cst.Module, statement: cst.SimpleStatementLine) -> str:
+    if len(statement.body) != 1 or not isinstance(statement.body[0], cst.Expr):
+        raise GitError("Target docstring representation is unsupported", code="DOCSTRING_REPRESENTATION_UNSUPPORTED")
+    expr = statement.body[0].value
+    if not isinstance(expr, (cst.SimpleString, cst.ConcatenatedString)):
+        raise GitError("Target docstring representation is unsupported", code="DOCSTRING_REPRESENTATION_UNSUPPORTED")
+    return module.code_for_node(expr)
+
+
+def _has_inline_suite_docstring(node: ast.AST) -> bool:
+    return hasattr(node, "lineno") and bool(getattr(node, "body", None)) and getattr(node.body[0], "lineno", None) == getattr(node, "lineno", None)
 
 
 def _resolve_decorator_target(records, target: str):
@@ -1646,6 +1715,12 @@ def _write_state(
     parameter_kind: str | None = None,
     expected_parameter_annotation: str | None = None,
     parameter_annotation: str | None = None,
+    expected_docstring_text: str | None = None,
+    removed_docstring_text: str | None = None,
+    removed_docstring_source: str | None = None,
+    docstring_target_kind: str | None = None,
+    docstring_replacement_statement: str | None = None,
+    before_source_b64: str | None = None,
 ) -> int | None:
     record = OperationRecord(
         created_at=now_utc_iso(),
@@ -1681,6 +1756,12 @@ def _write_state(
         parameter_kind=parameter_kind,
         expected_parameter_annotation=expected_parameter_annotation,
         parameter_annotation=parameter_annotation,
+        expected_docstring_text=expected_docstring_text,
+        removed_docstring_text=removed_docstring_text,
+        removed_docstring_source=removed_docstring_source,
+        docstring_target_kind=docstring_target_kind,
+        docstring_replacement_statement=docstring_replacement_statement,
+        before_source_b64=before_source_b64,
     )
     operation_id: int | None = None
     if db_path is not None and status not in {"planned", "refused"}:
@@ -2056,6 +2137,150 @@ class _DocstringInserter(cst.CSTTransformer):
             body=(docstring_line, *updated_node.body.body)
         )
         return updated_node.with_changes(body=body)
+
+
+class _DocstringRemover(cst.CSTTransformer):
+    def __init__(
+        self,
+        target_qname: str,
+        expected_docstring: str,
+        module: cst.Module,
+        ast_node: ast.AST,
+    ) -> None:
+        self.target_qname = target_qname
+        self.expected_docstring = expected_docstring
+        self.module = module
+        self.ast_node = ast_node
+        self.scope: list[str] = []
+        self.function_stack: list[bool] = []
+        self.class_stack: list[bool] = []
+        self.matched = False
+        self.removed_docstring_source: str | None = None
+        self.removed_docstring_text: str | None = None
+        self.docstring_replacement_statement: str | None = None
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self.scope.append(node.name.value)
+        self.class_stack.append(".".join(self.scope) == self.target_qname)
+
+    def leave_ClassDef(
+        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
+    ) -> cst.CSTNode:
+        is_target = self.class_stack.pop()
+        self.scope.pop()
+        if not is_target:
+            return updated_node
+        return self._rewrite_body(updated_node, kind="class")
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        qname = ".".join([*self.scope, node.name.value])
+        self.function_stack.append(qname == self.target_qname)
+
+    def leave_FunctionDef(
+        self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
+    ) -> cst.CSTNode:
+        is_target = self.function_stack.pop()
+        if not is_target:
+            return updated_node
+        return self._rewrite_body(updated_node, kind="function")
+
+    def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.CSTNode:
+        if self.target_qname != "module":
+            return updated_node
+        return self._rewrite_module(updated_node)
+
+    def _rewrite_body(self, updated_node: cst.FunctionDef | cst.ClassDef, *, kind: str) -> cst.CSTNode:
+        if not updated_node.body.body:
+            raise GitError("Target body is empty", code="DOCSTRING_NOT_FOUND")
+        first_stmt = updated_node.body.body[0]
+        if _has_inline_suite_docstring(self.ast_node):
+            raise GitError(
+                "Inline suite docstrings are not supported",
+                code="DOCSTRING_INLINE_SUITE_UNSUPPORTED",
+                details={"symbol": self.target_qname},
+            )
+        if not (
+            isinstance(first_stmt, cst.SimpleStatementLine)
+            and len(first_stmt.body) == 1
+            and isinstance(first_stmt.body[0], cst.Expr)
+        ):
+            raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+        actual_text = _docstring_value_from_ast_node(self.ast_node)
+        if actual_text is None:
+            raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+        if actual_text != self.expected_docstring:
+            raise GitError(
+                "The existing docstring does not match the expected text",
+                code="DOCSTRING_MISMATCH",
+                details={
+                    "symbol": self.target_qname,
+                    "expected_docstring": self.expected_docstring,
+                    "actual_docstring": actual_text,
+                },
+            )
+        source = _docstring_statement_source(self.module, first_stmt)
+        self.removed_docstring_source = source
+        self.removed_docstring_text = actual_text
+        self.matched = True
+
+        remaining = list(updated_node.body.body[1:])
+        if remaining:
+            first_remaining = remaining[0]
+            if isinstance(first_remaining, cst.SimpleStatementLine):
+                remaining[0] = first_remaining.with_changes(
+                    leading_lines=tuple(first_stmt.leading_lines) + tuple(first_remaining.leading_lines)
+                )
+            else:
+                raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+            new_body = updated_node.body.with_changes(body=tuple(remaining))
+            return updated_node.with_changes(body=new_body)
+
+        self.docstring_replacement_statement = "pass"
+        replacement = cst.SimpleStatementLine(
+            [cst.Pass()],
+            leading_lines=tuple(first_stmt.leading_lines),
+        )
+        new_body = updated_node.body.with_changes(body=(replacement,))
+        return updated_node.with_changes(body=new_body)
+
+    def _rewrite_module(self, updated_module: cst.Module) -> cst.CSTNode:
+        if not updated_module.body:
+            raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+        first_stmt = updated_module.body[0]
+        if not isinstance(first_stmt, cst.SimpleStatementLine):
+            raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+        if len(first_stmt.body) != 1 or not isinstance(first_stmt.body[0], cst.Expr):
+            raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+        actual_text = _docstring_value_from_ast_node(self.ast_node)
+        if actual_text is None:
+            raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+        if actual_text != self.expected_docstring:
+            raise GitError(
+                "The existing docstring does not match the expected text",
+                code="DOCSTRING_MISMATCH",
+                details={
+                    "symbol": self.target_qname,
+                    "expected_docstring": self.expected_docstring,
+                    "actual_docstring": actual_text,
+                },
+            )
+        source = _docstring_statement_source(self.module, first_stmt)
+        self.removed_docstring_source = source
+        self.removed_docstring_text = actual_text
+        self.matched = True
+
+        remaining = list(updated_module.body[1:])
+        if remaining:
+            first_remaining = remaining[0]
+            if isinstance(first_remaining, cst.SimpleStatementLine):
+                remaining[0] = first_remaining.with_changes(
+                    leading_lines=tuple(first_stmt.leading_lines) + tuple(first_remaining.leading_lines)
+                )
+            else:
+                raise GitError("Target docstring is not in the expected position", code="DOCSTRING_NOT_FOUND")
+            return updated_module.with_changes(body=tuple(remaining))
+
+        return updated_module.with_changes(header=tuple(updated_module.header) + tuple(first_stmt.leading_lines), body=())
 
 
 class _ReturnTypeInserter(cst.CSTTransformer):
@@ -2528,6 +2753,247 @@ def add_docstring(
         project_root=context.root,
         db_path=db_path,
         symbol=target_qname,
+        before_sha256=before_sha256,
+        after_sha256=after_sha256,
+        preview_diff_text=preview_diff_text if dry_run else None,
+        git_stat=stat,
+        git_diff_text=diff_text,
+        pytest_command=pytest_command,
+        pytest_exit_code=pytest_exit_code,
+        pytest_status=pytest_status,
+        status=status,
+        message=message,
+        operation_id=operation_id,
+        logged=logged,
+        rollback_available=logged,
+        exit_code=0 if pytest_exit_code in (None, 0) else 3,
+    )
+
+
+def remove_docstring(
+    file_path: Path,
+    target: str,
+    expected_docstring: str,
+    *,
+    project_root: Path | None = None,
+    db_path: Path | None = None,
+    run_tests: bool = False,
+    test_command: str | None = None,
+    dry_run: bool = False,
+) -> RemoveDocstringResult:
+    file_path = file_path.resolve()
+    if not file_path.exists():
+        raise GitError("File does not exist", code="FILE_NOT_FOUND")
+    if not expected_docstring.strip():
+        raise GitError("Docstring text is required", code="DOCSTRING_REQUIRED")
+
+    context = ensure_clean_git_repo(project_root or file_path.parent)
+    if not is_within_root(file_path, context.root):
+        raise GitError("File is outside the authorized project root", code="FILE_OUTSIDE_PROJECT")
+
+    before_sha256 = sha256_file(file_path)
+    source_bytes = file_path.read_bytes()
+    source, bom, encoding = _decode_python_bytes(source_bytes)
+    target_kind: str | None = None
+    target_qname = target
+
+    try:
+        cst.parse_module(source)
+    except Exception as exc:  # pragma: no cover - defensive
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-docstring",
+            symbol=target,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message=f"LibCST parse failed: {exc}",
+            expected_docstring_text=expected_docstring,
+            target_kind=target_kind,
+        )
+        raise GitError(
+            f"LibCST parse failed: {exc}",
+            code="PARSE_ERROR",
+            details={"file_path": str(file_path)},
+        ) from exc
+
+    module = ast.parse(source, filename=str(file_path))
+    cst_module = cst.parse_module(source)
+    target_kind, target_qname = _resolve_docstring_target(scan_file(file_path), target)
+
+    if target_kind == "module":
+        ast_node: ast.AST = module
+    else:
+        node = _find_target_node(module, target_qname)
+        if node is None:
+            _write_state(
+                project_root=context.root,
+                file_path=file_path,
+                db_path=db_path,
+                operation="remove-docstring",
+                symbol=target_qname,
+                before_sha256=before_sha256,
+                after_sha256=None,
+                git_diff_text=None,
+                pytest_command=None,
+                pytest_exit_code=None,
+                pytest_status=None,
+                status="refused",
+                message="Target symbol not found",
+                expected_docstring_text=expected_docstring,
+                docstring_target_kind=target_kind,
+                target_kind=target_kind,
+            )
+            raise GitError("Target symbol not found", code="TARGET_NOT_FOUND")
+        if not isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            raise GitError("Target docstring target is unsupported", code="DOCSTRING_TARGET_UNSUPPORTED")
+        ast_node = node
+
+    if target_kind != "module" and _has_inline_suite_docstring(ast_node):
+        raise GitError(
+            "Inline suite docstrings are not supported",
+            code="DOCSTRING_INLINE_SUITE_UNSUPPORTED",
+            details={"symbol": target_qname},
+        )
+
+    if _docstring_value_from_ast_node(ast_node) is None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target docstring not found",
+            expected_docstring_text=expected_docstring,
+            docstring_target_kind=target_kind,
+            target_kind=target_kind,
+        )
+        raise GitError("Target docstring not found", code="DOCSTRING_NOT_FOUND")
+
+    transformer = _DocstringRemover(target_qname, expected_docstring, cst_module, ast_node)
+    updated_module = cst_module.visit(transformer)
+    if not transformer.matched:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=None,
+            git_diff_text=None,
+            pytest_command=None,
+            pytest_exit_code=None,
+            pytest_status=None,
+            status="refused",
+            message="Target docstring not found",
+            expected_docstring_text=expected_docstring,
+            docstring_target_kind=target_kind,
+            target_kind=target_kind,
+        )
+        raise GitError("Target docstring not found", code="DOCSTRING_NOT_FOUND")
+
+    removed_docstring_text = transformer.removed_docstring_text or ""
+    removed_docstring_source = transformer.removed_docstring_source or ""
+    updated_source = updated_module.code
+    updated_bytes = _encode_python_text(updated_source, bom, encoding)
+    preview_diff_text = _preview_diff(file_path, source, updated_source)
+
+    if dry_run:
+        after_sha256 = before_sha256
+    else:
+        file_path.write_bytes(updated_bytes)
+        after_sha256 = sha256_file(file_path)
+
+    stat, diff_text = git_diff(context.root) if not dry_run else ("", "")
+
+    pytest_exit_code: int | None = None
+    pytest_status: str | None = None
+    pytest_command = None
+    status = "planned" if dry_run else "applied"
+    message = "Planned docstring removal." if dry_run else "Removed docstring."
+
+    if run_tests and not dry_run:
+        pytest_command = test_command or f"{sys.executable} -m pytest"
+        pytest_exit_code, pytest_output = run_pytest(context.root, test_command)
+        pytest_status = "passed" if pytest_exit_code == 0 else "failed"
+        if pytest_output:
+            message = f"{message} Pytest output: {pytest_output}"
+        status = "tested" if pytest_exit_code == 0 else "failed"
+
+    operation_id: int | None = None
+    before_source_b64 = base64.b64encode(source_bytes).decode("ascii")
+    if not dry_run:
+        operation_id = _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+            expected_docstring_text=expected_docstring,
+            removed_docstring_text=removed_docstring_text,
+            removed_docstring_source=removed_docstring_source,
+            docstring_target_kind=target_kind,
+            docstring_replacement_statement=transformer.docstring_replacement_statement,
+            before_source_b64=before_source_b64,
+            target_kind=target_kind,
+        )
+    elif db_path is not None:
+        _write_state(
+            project_root=context.root,
+            file_path=file_path,
+            db_path=db_path,
+            operation="remove-docstring",
+            symbol=target_qname,
+            before_sha256=before_sha256,
+            after_sha256=after_sha256,
+            git_diff_text=preview_diff_text,
+            pytest_command=pytest_command,
+            pytest_exit_code=pytest_exit_code,
+            pytest_status=pytest_status,
+            status=status,
+            message=message,
+            expected_docstring_text=expected_docstring,
+            removed_docstring_text=removed_docstring_text,
+            removed_docstring_source=removed_docstring_source,
+            docstring_target_kind=target_kind,
+            docstring_replacement_statement=transformer.docstring_replacement_statement,
+            before_source_b64=before_source_b64,
+            target_kind=target_kind,
+        )
+
+    logged = operation_id is not None
+    return RemoveDocstringResult(
+        file_path=file_path,
+        project_root=context.root,
+        db_path=db_path,
+        symbol=target_qname,
+        target_kind=target_kind,
+        expected_docstring_text=expected_docstring,
+        removed_docstring_text=removed_docstring_text,
+        removed_docstring_source=removed_docstring_source,
+        docstring_replacement_statement=transformer.docstring_replacement_statement,
         before_sha256=before_sha256,
         after_sha256=after_sha256,
         preview_diff_text=preview_diff_text if dry_run else None,

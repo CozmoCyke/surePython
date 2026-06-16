@@ -11,6 +11,7 @@ The JSON protocol is stable for the commands supported in this phase:
 
 - `capabilities`
 - `add-docstring`
+- `remove-docstring`
 - `add-return-type`
 - `remove-return-type`
 - `add-parameter-type`
@@ -70,6 +71,12 @@ Common codes include:
 - `TARGET_AMBIGUOUS`
 - `TARGET_UNSUPPORTED`
 - `DOCSTRING_EXISTS`
+- `DOCSTRING_REQUIRED`
+- `DOCSTRING_NOT_FOUND`
+- `DOCSTRING_MISMATCH`
+- `DOCSTRING_TARGET_UNSUPPORTED`
+- `DOCSTRING_REPRESENTATION_UNSUPPORTED`
+- `DOCSTRING_INLINE_SUITE_UNSUPPORTED`
 - `ANNOTATION_REQUIRED`
 - `ANNOTATION_INVALID`
 - `ANNOTATION_EXISTS`
@@ -174,6 +181,7 @@ Each command declares:
 - `status`
 
 The current supported operations now include `add-import`, which is a top-level module edit that adds exactly one explicit import statement with one binding.
+The current supported operations also include `remove-docstring`, which removes exactly one exact docstring from a supported module, class, function, or method after verifying the expected logical docstring text.
 The current supported operations also include `remove-import`, which removes exactly one explicit module-level import statement after verifying the expected statement.
 The current supported operations also include `add-decorator`, which adds exactly one explicit decorator expression to one supported function, method, or class.
 The current supported operations also include `remove-return-type`, which removes exactly one explicit return annotation after verifying the expected annotation exactly.
@@ -186,6 +194,7 @@ The current supported operations also include `remove-parameter-type`, which rem
 - Rollback responses expose both the source operation and the rollback log id
 - Rollback responses also expose a `selector` object with `type` and `value`
 - Parameter annotation responses expose the selected `parameter` name in `target`
+- Docstring removal responses expose the expected docstring text, removed docstring text, and target kind in `target`
 - Return annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Parameter annotation removal responses expose both the expected annotation and the removed annotation in `target`
 - Import insertion responses expose the selected `binding` name and exact `statement` in `target`

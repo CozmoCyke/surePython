@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import base64
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,11 @@ class RollbackResult:
     parameter: str | None
     parameter_kind: str | None
     parameter_annotation: str | None
+    expected_docstring_text: str | None
+    removed_docstring_text: str | None
+    removed_docstring_source: str | None
+    docstring_target_kind: str | None
+    docstring_replacement_statement: str | None
     dry_run: bool
     selector_type: str
     selector_value: int | str
@@ -486,6 +492,26 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: decorator_target_kind",
             code="ROLLBACK_NOT_AVAILABLE",
         )
+    if record.operation == "remove-docstring" and not record.expected_docstring_text:
+        raise GitError(
+            "Operation is missing rollback data: expected_docstring_text",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-docstring" and not record.removed_docstring_source:
+        raise GitError(
+            "Operation is missing rollback data: removed_docstring_source",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-docstring" and not record.docstring_target_kind:
+        raise GitError(
+            "Operation is missing rollback data: docstring_target_kind",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
+    if record.operation == "remove-docstring" and not record.before_source_b64:
+        raise GitError(
+            "Operation is missing rollback data: before_source_b64",
+            code="ROLLBACK_NOT_AVAILABLE",
+        )
     if record.operation == "add-decorator" and not record.decorator_expression:
         raise GitError(
             "Operation is missing rollback data: decorator_expression",
@@ -501,7 +527,7 @@ def _require_record_fields(record: OperationRecord) -> None:
             "Operation is missing rollback data: decorator_target_kind",
             code="ROLLBACK_NOT_AVAILABLE",
         )
-    if record.operation not in {"add-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "remove-parameter-type", "add-import", "remove-import", "add-decorator", "remove-decorator"}:
+    if record.operation not in {"add-docstring", "remove-docstring", "add-return-type", "remove-return-type", "add-parameter-type", "remove-parameter-type", "add-import", "remove-import", "add-decorator", "remove-decorator"}:
         raise GitError(
             f"Operation is not rollback-compatible: {record.operation}",
             code="UNKNOWN_SQLITE_OPERATION",
@@ -603,6 +629,118 @@ def _prepare_rollback_record(
         operation_label = "add-import"
         if not matched:
             raise GitError("Rollback target import was not modified", code="LEGACY_UNVERIFIABLE")
+    elif record.operation == "remove-docstring":
+        operation_label = "remove-docstring"
+        try:
+            restored_bytes = base64.b64decode(record.before_source_b64 or "", validate=True)
+        except Exception as exc:  # pragma: no cover - defensive
+            raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE") from exc
+        restored_source, _, _ = _decode_python_bytes(restored_bytes)
+        preview_diff_text = _preview_diff(file_path, source, restored_source)
+        candidate_sha = _sha256_bytes(restored_bytes)
+        bytes_equal = candidate_sha == record.before_sha256
+        if not bytes_equal:
+            raise GitError("Rollback result does not match logged before_sha256", code="LEGACY_UNVERIFIABLE")
+        status = "preview" if dry_run else "rolled_back"
+        message = (
+            f"Planned rollback of {operation_label} operation {record.operation_id}."
+            if dry_run
+            else f"Rolled back {operation_label} operation {record.operation_id}."
+        )
+        rollback_operation_id = None
+        restored_sha = current_sha if dry_run else candidate_sha
+
+        if not dry_run:
+            file_path.write_bytes(restored_bytes)
+            rollback_record = OperationRecord(
+                operation_id=None,
+                created_at=now_utc_iso(),
+                project_path=str(context.root),
+            file_path=str(file_path),
+                operation="rollback",
+                symbol=record.symbol,
+                target_kind=record.docstring_target_kind,
+                before_sha256=current_sha,
+                after_sha256=restored_sha,
+                git_diff=preview_diff_text,
+                pytest_command=None,
+                pytest_exit_code=None,
+                pytest_status=None,
+                status=status,
+                message=message,
+                source_operation_id=record.operation_id,
+                expected_docstring_text=record.expected_docstring_text,
+                removed_docstring_text=record.removed_docstring_text,
+                removed_docstring_source=record.removed_docstring_source,
+                docstring_target_kind=record.docstring_target_kind,
+                docstring_replacement_statement=record.docstring_replacement_statement,
+                before_source_b64=record.before_source_b64,
+            )
+            write_last_operation(rollback_record)
+            rollback_operation_id = insert_record(db_path, rollback_record)
+            write_last_operation(
+                OperationRecord(
+                    operation_id=rollback_operation_id,
+                    created_at=rollback_record.created_at,
+                    project_path=rollback_record.project_path,
+                    file_path=rollback_record.file_path,
+                    operation=rollback_record.operation,
+                    symbol=rollback_record.symbol,
+                    target_kind=rollback_record.target_kind,
+                    before_sha256=rollback_record.before_sha256,
+                    after_sha256=rollback_record.after_sha256,
+                    git_diff=rollback_record.git_diff,
+                    pytest_command=rollback_record.pytest_command,
+                    pytest_exit_code=rollback_record.pytest_exit_code,
+                    pytest_status=rollback_record.pytest_status,
+                    status=rollback_record.status,
+                    message=rollback_record.message,
+                    source_operation_id=rollback_record.source_operation_id,
+                    expected_docstring_text=rollback_record.expected_docstring_text,
+                    removed_docstring_text=rollback_record.removed_docstring_text,
+                    removed_docstring_source=rollback_record.removed_docstring_source,
+                    docstring_target_kind=rollback_record.docstring_target_kind,
+                    docstring_replacement_statement=rollback_record.docstring_replacement_statement,
+                    before_source_b64=rollback_record.before_source_b64,
+                )
+            )
+
+        result = RollbackResult(
+            db_path=db_path,
+            project_root=context.root,
+            file_path=file_path,
+            symbol=record.symbol or "",
+            import_binding=record.import_binding,
+            import_match_count=record.import_match_count,
+            expected_import_statement=record.expected_import_statement,
+            removed_import_statement=record.removed_import_statement,
+            parameter=record.parameter,
+            parameter_kind=record.parameter_kind,
+            parameter_annotation=record.parameter_annotation,
+            expected_docstring_text=record.expected_docstring_text,
+            removed_docstring_text=record.removed_docstring_text,
+            removed_docstring_source=record.removed_docstring_source,
+            docstring_target_kind=record.docstring_target_kind,
+            docstring_replacement_statement=record.docstring_replacement_statement,
+            dry_run=dry_run,
+            selector_type=selector_type,
+            selector_value=selector_value,
+            before_sha256=current_sha,
+            after_sha256=restored_sha,
+            preview_diff_text=preview_diff_text,
+            status=status,
+            message=message,
+            source_operation=record.operation or "",
+            source_operation_id=record.operation_id,
+            rollback_operation_id=rollback_operation_id,
+            return_annotation=record.return_annotation,
+            target_kind=record.docstring_target_kind or record.target_kind,
+            written=not dry_run,
+            logged=rollback_operation_id is not None,
+            bytes_equal=bytes_equal,
+            exit_code=0,
+        )
+        return result, restored_bytes
     else:
         operation_label = "remove-import"
         removed_bytes = (record.removed_import_statement or "").encode("utf-8")
@@ -702,6 +840,11 @@ def _prepare_rollback_record(
             parameter=record.parameter,
             parameter_kind=record.parameter_kind,
             parameter_annotation=record.parameter_annotation,
+            expected_docstring_text=None,
+            removed_docstring_text=None,
+            removed_docstring_source=None,
+            docstring_target_kind=None,
+            docstring_replacement_statement=None,
             dry_run=dry_run,
             selector_type=selector_type,
             selector_value=selector_value,
@@ -841,6 +984,11 @@ def _prepare_rollback_record(
         parameter_kind=record.parameter_kind,
         parameter_annotation=record.parameter_annotation,
         target_kind=record.target_kind,
+        expected_docstring_text=record.expected_docstring_text,
+        removed_docstring_text=record.removed_docstring_text,
+        removed_docstring_source=record.removed_docstring_source,
+        docstring_target_kind=record.docstring_target_kind,
+        docstring_replacement_statement=record.docstring_replacement_statement,
         written=not dry_run,
         logged=rollback_operation_id is not None,
         bytes_equal=bytes_equal,

@@ -49,6 +49,12 @@ class OperationRecord:
     parameter_kind: str | None = None
     expected_parameter_annotation: str | None = None
     parameter_annotation: str | None = None
+    expected_docstring_text: str | None = None
+    removed_docstring_text: str | None = None
+    removed_docstring_source: str | None = None
+    docstring_target_kind: str | None = None
+    docstring_replacement_statement: str | None = None
+    before_source_b64: str | None = None
 
 
 def now_utc_iso() -> str:
@@ -113,7 +119,13 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             target_kind TEXT,
             parameter_kind TEXT,
             expected_parameter_annotation TEXT,
-            parameter_annotation TEXT
+            parameter_annotation TEXT,
+            expected_docstring_text TEXT,
+            removed_docstring_text TEXT,
+            removed_docstring_source TEXT,
+            docstring_target_kind TEXT,
+            docstring_replacement_statement TEXT,
+            before_source_b64 TEXT
         )
         """
     )
@@ -189,6 +201,34 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
     if "parameter_annotation" not in existing_columns:
         connection.execute("ALTER TABLE surepython_operations ADD COLUMN parameter_annotation TEXT")
         connection.commit()
+    if "expected_docstring_text" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN expected_docstring_text TEXT"
+        )
+        connection.commit()
+    if "removed_docstring_text" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN removed_docstring_text TEXT"
+        )
+        connection.commit()
+    if "removed_docstring_source" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN removed_docstring_source TEXT"
+        )
+        connection.commit()
+    if "docstring_target_kind" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN docstring_target_kind TEXT"
+        )
+        connection.commit()
+    if "docstring_replacement_statement" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE surepython_operations ADD COLUMN docstring_replacement_statement TEXT"
+        )
+        connection.commit()
+    if "before_source_b64" not in existing_columns:
+        connection.execute("ALTER TABLE surepython_operations ADD COLUMN before_source_b64 TEXT")
+        connection.commit()
 
     connection.execute(
         """
@@ -251,8 +291,14 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 target_kind,
                 parameter_kind,
                 expected_parameter_annotation,
-                parameter_annotation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                parameter_annotation,
+                expected_docstring_text,
+                removed_docstring_text,
+                removed_docstring_source,
+                docstring_target_kind,
+                docstring_replacement_statement,
+                before_source_b64
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.created_at,
@@ -289,6 +335,12 @@ def insert_record(db_path: Path, record: OperationRecord) -> int:
                 record.parameter_kind,
                 record.expected_parameter_annotation,
                 record.parameter_annotation,
+                record.expected_docstring_text,
+                record.removed_docstring_text,
+                record.removed_docstring_source,
+                record.docstring_target_kind,
+                record.docstring_replacement_statement,
+                record.before_source_b64,
             ),
         )
         connection.commit()
@@ -334,6 +386,12 @@ def _operation_record_from_row(row: tuple) -> OperationRecord:
         parameter_kind=row[32],
         expected_parameter_annotation=row[33],
         parameter_annotation=row[34],
+        expected_docstring_text=row[35],
+        removed_docstring_text=row[36],
+        removed_docstring_source=row[37],
+        docstring_target_kind=row[38],
+        docstring_replacement_statement=row[39],
+        before_source_b64=row[40],
     )
 
 
@@ -381,7 +439,13 @@ def read_last_supported_operation(db_path: Path) -> OperationRecord:
                 target_kind,
                 parameter_kind,
                 expected_parameter_annotation,
-                parameter_annotation
+                parameter_annotation,
+                expected_docstring_text,
+                removed_docstring_text,
+                removed_docstring_source,
+                docstring_target_kind,
+                docstring_replacement_statement,
+                before_source_b64
             FROM surepython_operations
             WHERE operation != 'rollback'
               AND status IN ('applied', 'tested', 'failed')
@@ -449,7 +513,13 @@ def read_operation_by_id(db_path: Path, operation_id: int) -> OperationRecord:
                 target_kind,
                 parameter_kind,
                 expected_parameter_annotation,
-                parameter_annotation
+                parameter_annotation,
+                expected_docstring_text,
+                removed_docstring_text,
+                removed_docstring_source,
+                docstring_target_kind,
+                docstring_replacement_statement,
+                before_source_b64
             FROM surepython_operations
             WHERE id = ?
             """,
@@ -508,7 +578,13 @@ def read_rollback_for_source_operation(db_path: Path, source_operation_id: int) 
                 target_kind,
                 parameter_kind,
                 expected_parameter_annotation,
-                parameter_annotation
+                parameter_annotation,
+                expected_docstring_text,
+                removed_docstring_text,
+                removed_docstring_source,
+                docstring_target_kind,
+                docstring_replacement_statement,
+                before_source_b64
             FROM surepython_operations
             WHERE operation = 'rollback'
               AND source_operation_id = ?

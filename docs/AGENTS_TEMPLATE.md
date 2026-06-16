@@ -14,6 +14,7 @@ SurePython may execute only the transformations it explicitly supports.
 Current supported operation:
 
 - add one skeleton docstring to one Python function or method that has no existing docstring
+- remove one exact docstring from one Python module, class, function, or method after verifying the expected logical text
 - add one explicit return annotation to one Python function or method that has no existing return annotation
 - remove one explicit return annotation from one Python function or method after verifying the expected annotation
 - add one explicit parameter annotation to one Python function or method that has no existing parameter annotation
@@ -24,7 +25,7 @@ Current supported operation:
 
 Current supported rollback:
 
-- rollback the latest compatible SQLite-logged `add-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
+- rollback the latest compatible SQLite-logged `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
 
 Current machine-readable protocol:
 
@@ -45,6 +46,13 @@ For a docstring dry-run:
 ```powershell
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run --format json
+```
+
+For a docstring removal dry-run:
+
+```powershell
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --dry-run
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --dry-run --format json
 ```
 
 For a return annotation dry-run:
@@ -101,6 +109,8 @@ For a real operation:
 ```powershell
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db>
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db> --format json
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --test --db <database.db>
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --test --db <database.db> --format json
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db>
 python -m surepython add-return-type <file.py> --function <symbol> --annotation "<annotation>" --test --db <database.db> --format json
 python -m surepython remove-return-type <file.py> --function <symbol> --expect-annotation "<annotation>" --test --db <database.db>

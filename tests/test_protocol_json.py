@@ -6,7 +6,14 @@ import subprocess
 from pathlib import Path
 
 from surepython.cli import main
-from surepython.codemods import add_decorator, add_docstring, add_import, add_parameter_type, add_return_type
+from surepython.codemods import (
+    add_decorator,
+    add_docstring,
+    add_import,
+    add_parameter_type,
+    add_return_type,
+    remove_docstring,
+)
 from surepython.protocol import build_protocol_response, dump_json
 
 
@@ -113,6 +120,107 @@ def test_add_docstring_json_dry_run_is_structured_and_quiet(tmp_path: Path, monk
     assert payload["result"]["target"]["symbol"] == "SampleClass.sample_method"
     assert sample.read_text(encoding="utf-8") == before
     assert git_status_short(root) == ""
+
+
+def test_remove_docstring_json_dry_run_is_structured_and_quiet(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text(
+        "def load_user():\n"
+        "    \"\"\"Load a user.\"\"\"\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+    init_git_repo(root)
+    before = sample.read_text(encoding="utf-8")
+
+    exit_code = main(
+        [
+            "remove-docstring",
+            str(sample),
+            "--symbol",
+            "load_user",
+            "--expect-docstring",
+            "Load a user.",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["protocol_schema_version"] == "1.0"
+    assert payload["command"] == "remove-docstring"
+    assert payload["ok"] is True
+    assert payload["status"] == "preview"
+    assert payload["result"]["written"] is False
+    assert payload["result"]["logged"] is False
+    assert payload["result"]["rollback_available"] is False
+    assert payload["result"]["operation_id"] is None
+    assert payload["result"]["expected_docstring_text"] == "Load a user."
+    assert payload["result"]["target"]["kind"] == "function"
+    assert sample.read_text(encoding="utf-8") == before
+    assert git_status_short(root) == ""
+
+
+def test_remove_docstring_json_application_includes_operation_id_and_tests(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root = tmp_path / "project"
+    root.mkdir()
+    sample = root / "sample.py"
+    sample.write_text(
+        "class SampleClass:\n"
+        "    def sample_method(self):\n"
+        "        \"\"\"Remove me.\"\"\"\n"
+        "        return 1\n",
+        encoding="utf-8",
+    )
+    tests_dir = root / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_smoke.py").write_text(
+        "from sample import SampleClass\n\n"
+        "def test_smoke():\n"
+        "    assert SampleClass().sample_method() == 1\n",
+        encoding="utf-8",
+    )
+    init_git_repo(root)
+    db_path = tmp_path / "surepython.db"
+
+    exit_code = main(
+        [
+            "remove-docstring",
+            str(sample),
+            "--symbol",
+            "SampleClass.sample_method",
+            "--expect-docstring",
+            "Remove me.",
+            "--test",
+            "--db",
+            str(db_path),
+            "--format",
+            "json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["status"] == "tested"
+    assert payload["result"]["operation_id"] is not None
+    assert payload["result"]["logged"] is True
+    assert payload["result"]["rollback_available"] is True
+    assert payload["result"]["tests"]["status"] == "passed"
+    assert payload["result"]["tests"]["exit_code"] == 0
+    assert '"""Remove me."""' not in sample.read_text(encoding="utf-8")
+    assert git_status_short(root) != ""
+    assert read_rows(db_path)[0][0] == "remove-docstring"
 
 
 def test_add_return_type_json_dry_run_is_structured_and_quiet(tmp_path: Path, monkeypatch, capsys) -> None:

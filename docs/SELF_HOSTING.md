@@ -2,7 +2,7 @@
 
 SurePython Phase 2.2 uses SurePython as a safety layer when the requested change already matches a supported operation.
 
-Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. Phase 2.5 extends it with `add-decorator`. Phase 2.6 adds `remove-return-type`. Phase 2.7 adds `remove-parameter-type`. Phase 2.8 adds `remove-decorator`. Phase 2.9 adds `remove-import`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation, import, decorator, return-annotation, or exact import-removal changes should use it.
+Phase 2.3 extends the product with `add-parameter-type`. Phase 2.4 extends it again with `add-import`. Phase 2.5 extends it with `add-decorator`. Phase 2.6 adds `remove-return-type`. Phase 2.7 adds `remove-parameter-type`. Phase 2.8 adds `remove-decorator`. Phase 2.9 adds `remove-import`. Phase 2.10 adds `remove-docstring`. The implementation work that introduces a brand-new operation still requires direct Codex edits for the new plumbing, but once the capability exists, future parameter-annotation, import, decorator, return-annotation, exact import-removal, or docstring-removal changes should use it.
 
 ## Principle
 
@@ -36,6 +36,7 @@ Use SurePython when the intended edit is one of the supported micro-modification
 - remove one explicit top-level import statement from a module file after verifying the expected statement
 - add one explicit decorator expression to a function, method, or class
 - remove one explicit decorator expression from a function, method, or class after verifying the expected expression and position
+- remove one exact docstring from a module, class, function, or method after verifying the expected logical text
 
 Use the explicit rollback path when the operation has already been logged and must be reversed safely.
 
@@ -82,7 +83,9 @@ Phase 2.3 is an honest self-hosting boundary case:
 - direct edits were therefore the correct fallback for the plumbing itself
 - the new `remove-return-type` operation had to be built before it could be used
 - direct edits were therefore the correct fallback for the plumbing itself
-- once Phase 2.7 is merged, future parameter removals should prefer SurePython when the capability is available
+- the new `remove-docstring` operation had to be built before it could be used
+- direct edits were therefore the correct fallback for the plumbing itself
+- once the relevant capability is available, future parameter removals and docstring removals should prefer SurePython
 
 Do not reduce the comparison to speed alone.
 

@@ -27,6 +27,7 @@ SurePython may:
 - scan Python symbols
 - preview a supported micro-change
 - add one skeleton docstring to one function or method
+- remove one exact docstring from one module, class, function, or method after verifying the expected logical text
 - add one explicit return annotation to one function or method
 - remove one explicit return annotation from one function or method after verifying the expected annotation
 - add one explicit parameter annotation to one function or method
@@ -37,7 +38,7 @@ SurePython may:
 - remove one explicit decorator expression from one function, method, or class after verifying the expected expression and position
 - run pytest after a real edit
 - record the operation in SQLite
-- roll back one compatible logged `add-docstring`, `add-return-type`, `add-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
+- roll back one compatible logged `add-docstring`, `remove-docstring`, `add-return-type`, `remove-return-type`, `add-parameter-type`, `remove-parameter-type`, `add-import`, `remove-import`, `add-decorator`, or `remove-decorator` operation
 - emit a stable JSON protocol when `--format json` is requested
 
 SurePython must not be described as a general-purpose coding agent. It is a narrow executor.
@@ -53,6 +54,19 @@ python -m surepython add-docstring <file.py> --function <symbol> --dry-run
 python -m surepython add-docstring <file.py> --function <symbol> --dry-run --format json
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db>
 python -m surepython add-docstring <file.py> --function <symbol> --test --db <database.db> --format json
+python -m surepython diff
+git status --short
+```
+
+For a supported docstring removal operation:
+
+```powershell
+python -m surepython capabilities --format json
+python -m surepython scan <project-or-folder> --format json
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --dry-run
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --dry-run --format json
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --test --db <database.db>
+python -m surepython remove-docstring <file.py> --symbol <symbol> --expect-docstring "<exact docstring text>" --test --db <database.db> --format json
 python -m surepython diff
 git status --short
 ```
