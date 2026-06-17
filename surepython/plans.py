@@ -477,7 +477,13 @@ def _simulate_plan(plan_spec: PlanSpec, project_root: Path) -> PlanSimulation:
         _git_config_identity(staging_root)
         _git_commit_all(staging_root, "baseline")
 
-        temp_state_file = staging_root / ".surepython-plan-state.json"
+        temp_state_file = (
+            Path(tempfile.gettempdir())
+            / "surepython"
+            / "plan-state"
+            / f"{staging_root.name}.json"
+        )
+        temp_state_file.parent.mkdir(parents=True, exist_ok=True)
         previous_state_file = os.environ.get("SUREPYTHON_STATE_FILE")
         os.environ["SUREPYTHON_STATE_FILE"] = str(temp_state_file)
         try:
@@ -486,15 +492,27 @@ def _simulate_plan(plan_spec: PlanSpec, project_root: Path) -> PlanSimulation:
                 _validate_step_arguments(step.operation, step.arguments)
                 temp_file = staging_root / step.file
                 before_sha256 = sha256_file(temp_file)
-                result = _call_operation(
-                    step.operation,
-                    temp_file,
-                    step.arguments,
-                    project_root=staging_root,
-                    db_path=None,
-                    run_tests=False,
-                    dry_run=False,
-                )
+                try:
+                    result = _call_operation(
+                        step.operation,
+                        temp_file,
+                        step.arguments,
+                        project_root=staging_root,
+                        db_path=None,
+                        run_tests=False,
+                        dry_run=False,
+                    )
+                except GitError as exc:
+                    raise GitError(
+                        "Plan step failed",
+                        code="PLAN_STEP_FAILED",
+                        details={
+                            "failed_step_index": index,
+                            "failed_step_id": step.id,
+                            "failed_operation": step.operation,
+                            "error": exc.to_payload(),
+                        },
+                    ) from exc
                 _git_commit_all(staging_root, f"plan-step {step.id}")
                 after_sha256 = sha256_file(temp_file)
                 diff_text = _git_diff_text(staging_root, "HEAD~1", "HEAD")[1]
@@ -724,6 +742,8 @@ def apply_plan(
 ) -> PlanApplyResult:
     if db_path is None:
         raise GitError("Plan apply requires --db", code="DATABASE_ERROR")
+    if not expected_preview_hash:
+        raise GitError("Plan apply requires a preview hash", code="PLAN_PREVIEW_HASH_REQUIRED")
     plan_spec = load_plan_spec(plan_path)
     context = ensure_clean_git_repo(project_root or Path.cwd())
     _ensure_no_recovery_required(context.root)
@@ -967,8 +987,10 @@ def rollback_plan(
 ) -> PlanRollbackResult:
     root = ensure_clean_git_repo(project_root or Path.cwd()).root
     _ensure_no_recovery_required(root)
-    if (plan_id is None and not last) or (plan_id is not None and last):
+    if plan_id is None and not last:
         raise GitError("plan rollback requires --last or --id", code="PLAN_INVALID")
+    if plan_id is not None and last:
+        raise GitError("plan rollback selectors are mutually exclusive", code="ROLLBACK_SELECTOR_CONFLICT")
     if plan_id is not None and plan_id <= 0:
         raise GitError("Plan id must be positive", code="OPERATION_ID_INVALID")
     if last:

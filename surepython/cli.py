@@ -1464,15 +1464,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     plan_apply_parser = plan_subparsers.add_parser("apply", help="Apply a transactional plan")
     plan_apply_parser.add_argument("plan_path", type=Path)
-    plan_apply_parser.add_argument("--expect-preview-hash", required=True)
+    plan_apply_parser.add_argument("--expect-preview-hash")
     plan_apply_parser.add_argument("--test", action="store_true")
     plan_apply_parser.add_argument("--db", type=Path, required=True)
     plan_apply_parser.add_argument("--format", choices=["text", "json"], default="text")
 
     plan_rollback_parser = plan_subparsers.add_parser("rollback", help="Rollback a transactional plan")
-    plan_rollback_selector = plan_rollback_parser.add_mutually_exclusive_group(required=True)
-    plan_rollback_selector.add_argument("--last", action="store_true")
-    plan_rollback_selector.add_argument("--id", type=int)
+    plan_rollback_parser.add_argument("--last", action="store_true")
+    plan_rollback_parser.add_argument("--id", type=int)
     plan_rollback_parser.add_argument("--db", type=Path, required=True)
     plan_rollback_parser.add_argument("--dry-run", action="store_true")
     plan_rollback_parser.add_argument("--format", choices=["text", "json"], default="text")
