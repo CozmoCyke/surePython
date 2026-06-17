@@ -23,7 +23,13 @@ from .codemods import (
 )
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
-from .plans import apply_plan, preview_plan, recover_plan, rollback_plan as rollback_transactional_plan
+from .plans import (
+    _ensure_no_recovery_required,
+    apply_plan,
+    preview_plan,
+    recover_plan,
+    rollback_plan as rollback_transactional_plan,
+)
 from .transaction_lock import acquire_project_mutation_lock
 from .protocol import (
     EXIT_INTERNAL,
@@ -332,6 +338,7 @@ def _cmd_add_docstring(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-docstring"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = add_docstring(
                 file_path,
                 function,
@@ -413,6 +420,7 @@ def _cmd_remove_docstring(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-docstring"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = remove_docstring(
                 file_path,
                 symbol,
@@ -504,6 +512,7 @@ def _cmd_add_import(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-import"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = add_import(
                 file_path,
                 statement,
@@ -585,6 +594,7 @@ def _cmd_remove_import(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-import"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = remove_import(
                 file_path,
                 expect_statement,
@@ -680,6 +690,7 @@ def _cmd_add_decorator(
         return _emit_error("add-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-decorator"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = add_decorator(
                 file_path,
                 symbol,
@@ -776,6 +787,7 @@ def _cmd_remove_decorator(
         return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-decorator"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = remove_decorator(
                 file_path,
                 symbol,
@@ -864,6 +876,7 @@ def _cmd_add_return_type(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-return-type"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = add_return_type(
                 file_path,
                 function,
@@ -947,6 +960,7 @@ def _cmd_remove_return_type(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-return-type"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = remove_return_type(
                 file_path,
                 function,
@@ -1037,6 +1051,7 @@ def _cmd_remove_parameter_type(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-parameter-type"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = remove_parameter_type(
                 file_path,
                 function,
@@ -1131,6 +1146,7 @@ def _cmd_add_parameter_type(
 ) -> int:
     try:
         with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-parameter-type"):
+            _ensure_no_recovery_required(_mutation_root_for(file_path.parent))
             result = add_parameter_type(
                 file_path,
                 function,

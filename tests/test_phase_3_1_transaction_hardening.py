@@ -245,6 +245,170 @@ def test_plan_fault_injection_recovery_is_idempotent(tmp_path: Path, monkeypatch
     assert second_recover_payload["result"]["recovered"] is False
 
 
+def test_atomic_mutation_refuses_while_plan_recovery_is_required(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, plan_path, db_path = make_plan_project(tmp_path)
+    monkeypatch.chdir(root)
+
+    preview_exit_code = main(["plan", "preview", str(plan_path), "--format", "json"])
+    assert preview_exit_code == 0
+    preview_hash = _read_json(capsys)["result"]["preview_hash"]
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["SUREPYTHON_PLAN_FAULT_AT"] = "apply:file-written"
+    env["SUREPYTHON_PLAN_FAULT_MODE"] = "exit"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "surepython",
+            "plan",
+            "apply",
+            str(plan_path),
+            "--expect-preview-hash",
+            preview_hash,
+            "--db",
+            str(db_path),
+            "--format",
+            "json",
+        ],
+        cwd=str(root),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 91
+
+    exit_code = main(
+        [
+            "add-docstring",
+            str(root / "module_a.py"),
+            "--function",
+            "Service.greet",
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    assert exit_code == 4
+    payload = _read_json(capsys)
+    assert payload["error"]["code"] == "PLAN_RECOVERY_REQUIRED"
+
+
+def test_plan_recover_reconciles_durable_sqlite_commit_without_restoring_files(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, plan_path, db_path = make_plan_project(tmp_path)
+    monkeypatch.chdir(root)
+
+    preview_exit_code = main(["plan", "preview", str(plan_path), "--format", "json"])
+    assert preview_exit_code == 0
+    preview_hash = _read_json(capsys)["result"]["preview_hash"]
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["SUREPYTHON_PLAN_FAULT_AT"] = "apply:db-committed"
+    env["SUREPYTHON_PLAN_FAULT_MODE"] = "exit"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "surepython",
+            "plan",
+            "apply",
+            str(plan_path),
+            "--expect-preview-hash",
+            preview_hash,
+            "--db",
+            str(db_path),
+            "--format",
+            "json",
+        ],
+        cwd=str(root),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 91
+
+    after_a = (root / "module_a.py").read_bytes()
+    after_b = (root / "module_b.py").read_bytes()
+
+    recover_exit_code = main(["plan", "recover", "--format", "json"])
+    assert recover_exit_code == 0
+    recover_payload = _read_json(capsys)
+    assert recover_payload["status"] == "recovered"
+    assert recover_payload["result"]["recovered"] is True
+    assert recover_payload["result"]["written"] is False
+    assert (root / "module_a.py").read_bytes() == after_a
+    assert (root / "module_b.py").read_bytes() == after_b
+
+    transaction_dir = transaction_root(root) / recover_payload["result"]["transaction_uuid"]
+    assert not (transaction_dir / "preimages").exists()
+
+
+def test_plan_recover_rejects_committed_sqlite_after_user_modification(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
+    root, plan_path, db_path = make_plan_project(tmp_path)
+    monkeypatch.chdir(root)
+
+    preview_exit_code = main(["plan", "preview", str(plan_path), "--format", "json"])
+    assert preview_exit_code == 0
+    preview_hash = _read_json(capsys)["result"]["preview_hash"]
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["SUREPYTHON_PLAN_FAULT_AT"] = "apply:db-committed"
+    env["SUREPYTHON_PLAN_FAULT_MODE"] = "exit"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "surepython",
+            "plan",
+            "apply",
+            str(plan_path),
+            "--expect-preview-hash",
+            preview_hash,
+            "--db",
+            str(db_path),
+            "--format",
+            "json",
+        ],
+        cwd=str(root),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 91
+
+    original_a = (root / "module_a.py").read_bytes()
+    (root / "module_a.py").write_text(
+        "class Service:\n"
+        "    def greet(self):\n"
+        "        return 'user edit'\n",
+        encoding="utf-8",
+    )
+
+    recover_exit_code = main(["plan", "recover", "--format", "json"])
+    assert recover_exit_code == 2
+    recover_payload = _read_json(capsys)
+    assert recover_payload["error"]["code"] == "PLAN_RECOVERY_CONFLICT"
+    assert (root / "module_a.py").read_bytes() != original_a
+
+
 def test_plan_manifest_integrity_rejects_invalid_state_and_checksum(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("SUREPYTHON_STATE_FILE", str(tmp_path / "state.json"))
     root, plan_path, db_path = make_plan_project(tmp_path)

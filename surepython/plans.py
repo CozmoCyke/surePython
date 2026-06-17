@@ -35,6 +35,7 @@ from .datasette_log import (
     now_utc_iso,
     read_last_plan,
     read_plan_by_id,
+    read_plan_by_uuid,
     read_plan_files,
     read_plan_steps,
     read_rollback_for_source_plan,
@@ -675,6 +676,18 @@ def _inject_plan_fault(checkpoint: str) -> None:
     raise GitError("Injected transactional plan fault", code="PLAN_DATABASE_FAILED", details=details)
 
 
+def _classify_recovery_file_state(project_root: Path, file_info: dict[str, Any]) -> tuple[str, str | None]:
+    target = project_root / file_info["file"]
+    if not target.exists():
+        return "missing", None
+    current_sha256 = sha256_file(target)
+    if current_sha256 == file_info["before_sha256"]:
+        return "before", current_sha256
+    if current_sha256 == file_info["after_sha256"]:
+        return "after", current_sha256
+    return "unknown", current_sha256
+
+
 def _transaction_root(project_root: Path) -> Path:
     project_digest = hashlib.sha256(str(project_root.resolve()).encode("utf-8")).hexdigest()
     return Path(tempfile.gettempdir()) / "surepython" / "transactions" / project_digest
@@ -782,6 +795,28 @@ def _find_incomplete_manifest(project_root: Path) -> dict[str, Any] | None:
     return found
 
 
+def _find_recoverable_manifest(project_root: Path) -> dict[str, Any] | None:
+    root = _transaction_root(project_root)
+    if not root.exists():
+        return None
+    found: dict[str, Any] | None = None
+    for manifest_path in sorted(root.glob("*/manifest.json")):
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            raise GitError("Transaction manifest is invalid", code="PLAN_MANIFEST_INVALID")
+        _validate_manifest_structure(data, strict=False)
+        needs_recovery = data.get("status") in INCOMPLETE_TRANSACTION_STATUSES
+        needs_cleanup = data.get("status") in TERMINAL_TRANSACTION_STATUSES and (manifest_path.parent / "preimages").exists()
+        if needs_recovery or needs_cleanup:
+            if found is not None:
+                raise GitError("Multiple incomplete transaction manifests were found", code="PLAN_RECOVERY_CONFLICT")
+            found = data
+            found["manifest_path"] = str(manifest_path)
+            found["recovery_mode"] = "cleanup" if needs_cleanup and not needs_recovery else "restore"
+    return found
+
+
 def _ensure_no_recovery_required(project_root: Path) -> None:
     manifest = _find_incomplete_manifest(project_root)
     if manifest is not None:
@@ -869,6 +904,7 @@ def apply_plan(
     manifest = {
         "transaction_uuid": transaction_uuid,
         "project_root": str(context.root),
+        "db_path": str(db_path.resolve()),
         "plan_path": str(plan_path.resolve()),
         "plan_hash": _hash_text(plan_path.read_text(encoding="utf-8")),
         "preview_hash": simulation.preview_hash,
@@ -1187,6 +1223,7 @@ def rollback_plan(
         "transaction_uuid": str(uuid.uuid4()),
         "project_root": str(root),
         "plan_id": plan_row.id,
+        "db_path": str(db_path.resolve()),
         "preview_hash": plan_row.preview_hash,
         "status": "restoring",
         "files": [
@@ -1274,32 +1311,105 @@ def rollback_plan(
 
 def recover_plan(*, project_root: Path | None = None) -> dict[str, Any]:
     root = ensure_git_context(project_root or Path.cwd()).root
-    manifest = _find_incomplete_manifest(root)
+    manifest = _find_recoverable_manifest(root)
     if manifest is None:
         return {"written": False, "recovered": False, "message": "No recovery required"}
     manifest_path = Path(manifest.get("manifest_path", _manifest_path(root, manifest["transaction_uuid"])))
     transaction_dir = manifest_path.parent
     preimages = transaction_dir / "preimages"
-    restored = True
+    db_path = Path(manifest["db_path"]) if manifest.get("db_path") else None
+    plan_row = None
+    if db_path is not None and db_path.exists():
+        plan_row = read_plan_by_uuid(db_path, str(manifest["transaction_uuid"]))
+    durable_sqlite = plan_row is not None and plan_row.status in {"applied", "tested"}
+    restored = False
+    cleaned = False
     _inject_plan_fault("recover:manifest-read")
-    for file_info in manifest.get("files", []):
-        target = root / file_info["file"]
-        preimage_path = preimages / file_info["file"]
-        if not preimage_path.exists():
-            restored = False
-            break
-        target.write_bytes(preimage_path.read_bytes())
-        if sha256_file(target) != file_info["before_sha256"]:
-            restored = False
-            break
-        _inject_plan_fault("recover:file-restored")
-    _inject_plan_fault("recover:files-restored")
-    manifest["status"] = "recovered" if restored else "recovery_required"
-    _write_manifest(root, manifest)
-    _inject_plan_fault("recover:manifest-written")
+    file_infos = list(manifest.get("files", []))
+    states = [_classify_recovery_file_state(root, file_info) for file_info in file_infos]
+
+    if durable_sqlite:
+        if all(state == "after" for state, _ in states):
+            manifest["status"] = "complete"
+            _write_manifest(root, manifest)
+            cleaned = True
+        elif all(state == "before" for state, _ in states):
+            raise GitError(
+                "Committed transaction files were reverted before recovery",
+                code="PLAN_RECOVERY_CONFLICT",
+                details={
+                    "transaction_uuid": manifest.get("transaction_uuid"),
+                    "plan_id": getattr(plan_row, "id", None),
+                },
+            )
+        else:
+            conflict = next(
+                (
+                    {
+                        "file": file_info["file"],
+                        "state": state,
+                        "current_sha256": current_sha256,
+                        "before_sha256": file_info["before_sha256"],
+                        "after_sha256": file_info["after_sha256"],
+                    }
+                    for file_info, (state, current_sha256) in zip(file_infos, states)
+                    if state in {"missing", "unknown", "before"}
+                ),
+                None,
+            )
+            raise GitError(
+                "Committed transaction files are inconsistent",
+                code="PLAN_RECOVERY_CONFLICT",
+                details={
+                    "transaction_uuid": manifest.get("transaction_uuid"),
+                    "plan_id": getattr(plan_row, "id", None),
+                    "conflict": conflict,
+                },
+            )
+    else:
+        restored = True
+        for file_info, (state, current_sha256) in zip(file_infos, states):
+            target = root / file_info["file"]
+            preimage_path = preimages / file_info["file"]
+            if state == "before":
+                continue
+            if state == "unknown":
+                raise GitError(
+                    "Transaction files are inconsistent",
+                    code="PLAN_RECOVERY_CONFLICT",
+                    details={
+                        "file": file_info["file"],
+                        "state": state,
+                        "current_sha256": current_sha256,
+                        "before_sha256": file_info["before_sha256"],
+                        "after_sha256": file_info["after_sha256"],
+                    },
+                )
+            if not preimage_path.exists():
+                restored = False
+                break
+            target.write_bytes(preimage_path.read_bytes())
+            if sha256_file(target) != file_info["before_sha256"]:
+                restored = False
+                break
+            _inject_plan_fault("recover:file-restored")
+        _inject_plan_fault("recover:files-restored")
+        manifest["status"] = "recovered" if restored else "recovery_required"
+        _write_manifest(root, manifest)
+        _inject_plan_fault("recover:manifest-written")
+
+    _inject_plan_fault("recover:before-cleanup")
+    if preimages.exists():
+        shutil.rmtree(preimages, ignore_errors=True)
+    if transaction_dir.exists():
+        try:
+            transaction_dir.rmdir()
+        except OSError:
+            pass
+
     return {
         "written": restored,
-        "recovered": restored,
+        "recovered": restored or cleaned,
         "transaction_uuid": manifest.get("transaction_uuid"),
         "status": manifest["status"],
     }

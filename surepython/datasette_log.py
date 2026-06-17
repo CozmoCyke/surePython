@@ -731,6 +731,53 @@ def read_plan_by_id(db_path: Path, plan_id: int) -> PlanRecord:
     return _plan_record_from_row(row)
 
 
+def read_plan_by_uuid(db_path: Path, plan_uuid: str) -> PlanRecord | None:
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database does not exist: {db_path}")
+
+    connection = sqlite3.connect(str(db_path))
+    try:
+        ensure_schema(connection)
+        row = connection.execute(
+            """
+            SELECT
+                id,
+                created_at,
+                project_path,
+                plan_uuid,
+                client_plan_id,
+                name,
+                description,
+                plan_schema_version,
+                plan_path,
+                metadata_json,
+                preview_hash,
+                status,
+                step_count,
+                file_count,
+                tests_requested,
+                tests_passed,
+                started_at,
+                completed_at,
+                error_code,
+                rollback_of_plan_id,
+                source_plan_id,
+                message
+            FROM surepython_plans
+            WHERE plan_uuid = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (plan_uuid,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    if row is None:
+        return None
+    return _plan_record_from_row(row)
+
+
 def read_rollback_for_source_plan(db_path: Path, source_plan_id: int) -> PlanRecord | None:
     if not db_path.exists():
         raise FileNotFoundError(f"Database does not exist: {db_path}")
