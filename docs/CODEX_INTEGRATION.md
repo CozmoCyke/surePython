@@ -303,3 +303,17 @@ return stable JSON for supported commands when requested
 ```
 
 The smallness is the design. It is the quarantine chamber between an AI proposal and real Python code.
+
+## Phase 3.1 Hardening
+
+When a transactional plan or a mutating command is already supported, Codex must still respect the project mutation lock and the recovery state.
+
+Practical rules:
+
+- query `surepython capabilities --format json` before using a supported operation
+- if a recovery is required, stop and run `plan recover` before attempting more mutations
+- if SurePython returns `PROJECT_MUTATION_LOCKED`, wait or resolve the competing process instead of retrying blindly
+- do not treat `PLAN_MANIFEST_INVALID`, `PLAN_STATE_INVALID`, or `PLAN_RECOVERY_CONFLICT` as suggestions to continue; they are stop conditions
+- do not weaken the manifest checksum or remove the lock to get a "green" result
+
+This keeps the agent contract honest under concurrent or interrupted execution.

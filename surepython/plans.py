@@ -40,9 +40,11 @@ from .datasette_log import (
     read_rollback_for_source_plan,
 )
 from .git_tools import GitError, ensure_clean_git_repo, ensure_git_context, is_within_root, run_git, sha256_file
+from .transaction_lock import acquire_project_mutation_lock
 
 
 PLAN_SCHEMA_VERSION = "1.0"
+TRANSACTION_MANIFEST_SCHEMA_VERSION = "1.0"
 PLAN_MAX_STEPS = 50
 INCOMPLETE_TRANSACTION_STATUSES = {
     "preparing",
@@ -51,6 +53,21 @@ INCOMPLETE_TRANSACTION_STATUSES = {
     "logging",
     "restoring",
     "recovery_required",
+}
+TERMINAL_TRANSACTION_STATUSES = {"complete", "failed", "recovered"}
+TRANSACTION_MANIFEST_ALLOWED_STATUSES = INCOMPLETE_TRANSACTION_STATUSES | TERMINAL_TRANSACTION_STATUSES
+TRANSACTION_MANIFEST_INITIAL_STATUSES = {"preparing", "restoring"}
+TRANSACTION_MANIFEST_TRANSITIONS = {
+    None: TRANSACTION_MANIFEST_INITIAL_STATUSES,
+    "preparing": {"writing", "failed", "recovery_required", "recovered"},
+    "writing": {"testing", "logging", "restoring", "failed", "recovery_required", "recovered"},
+    "testing": {"logging", "restoring", "failed", "recovery_required", "recovered"},
+    "logging": {"complete", "restoring", "failed", "recovery_required", "recovered"},
+    "restoring": {"failed", "recovery_required", "recovered", "logging"},
+    "failed": {"recovered", "recovery_required"},
+    "recovery_required": {"recovered", "failed"},
+    "recovered": set(),
+    "complete": set(),
 }
 SUPPORTED_PLAN_OPERATIONS = {
     "add-docstring",
@@ -621,8 +638,10 @@ def _build_preview_hash(
 
 def preview_plan(plan_path: Path, *, project_root: Path | None = None) -> PlanPreviewResult:
     plan_spec = load_plan_spec(plan_path)
-    context = ensure_clean_git_repo(project_root or Path.cwd())
-    simulation = _simulate_plan(plan_spec, context.root)
+    context = ensure_git_context(project_root or Path.cwd())
+    context = ensure_clean_git_repo(context.root)
+    with acquire_project_mutation_lock(context.root, "plan preview"):
+        simulation = _simulate_plan(plan_spec, context.root)
     return PlanPreviewResult(
         plan_schema_version=plan_spec.plan_schema_version,
         name=plan_spec.name,
@@ -642,6 +661,20 @@ def preview_plan(plan_path: Path, *, project_root: Path | None = None) -> PlanPr
     )
 
 
+def _inject_plan_fault(checkpoint: str) -> None:
+    requested = os.environ.get("SUREPYTHON_PLAN_FAULT_AT")
+    if not requested:
+        return
+    checkpoints = {item.strip() for item in requested.split(",") if item.strip()}
+    if checkpoint not in checkpoints:
+        return
+    mode = os.environ.get("SUREPYTHON_PLAN_FAULT_MODE", "exception")
+    details = {"checkpoint": checkpoint, "mode": mode}
+    if mode == "exit":  # pragma: no cover - exercised by subprocess smokes
+        os._exit(91)
+    raise GitError("Injected transactional plan fault", code="PLAN_DATABASE_FAILED", details=details)
+
+
 def _transaction_root(project_root: Path) -> Path:
     project_digest = hashlib.sha256(str(project_root.resolve()).encode("utf-8")).hexdigest()
     return Path(tempfile.gettempdir()) / "surepython" / "transactions" / project_digest
@@ -651,11 +684,73 @@ def _manifest_path(project_root: Path, transaction_uuid: str) -> Path:
     return _transaction_root(project_root) / transaction_uuid / "manifest.json"
 
 
+def _manifest_payload(manifest: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(manifest)
+    payload.setdefault("transaction_manifest_schema_version", TRANSACTION_MANIFEST_SCHEMA_VERSION)
+    payload.pop("manifest_payload_sha256", None)
+    return payload
+
+
+def _manifest_payload_sha256(manifest: dict[str, Any]) -> str:
+    payload = json.dumps(
+        _manifest_payload(manifest),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return f"sha256:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+
+def _validate_manifest_structure(manifest: dict[str, Any], *, strict: bool = True) -> None:
+    if not isinstance(manifest, dict):
+        raise GitError("Manifest must be a JSON object", code="PLAN_MANIFEST_INVALID")
+    for required_key in ("transaction_uuid", "project_root", "preview_hash", "status", "files"):
+        if required_key not in manifest:
+            raise GitError("Manifest is missing required fields", code="PLAN_MANIFEST_INVALID")
+    if not isinstance(manifest.get("files"), list):
+        raise GitError("Manifest files must be a list", code="PLAN_MANIFEST_INVALID")
+    status = manifest.get("status")
+    if status not in TRANSACTION_MANIFEST_ALLOWED_STATUSES:
+        raise GitError("Unsupported transaction manifest state", code="PLAN_STATE_INVALID")
+    schema_version = manifest.get("transaction_manifest_schema_version")
+    expected = manifest.get("manifest_payload_sha256")
+    if schema_version is None and expected is None:
+        if strict:
+            return
+        return
+    if schema_version != TRANSACTION_MANIFEST_SCHEMA_VERSION:
+        raise GitError("Unsupported transaction manifest schema version", code="PLAN_MANIFEST_INVALID")
+    if not isinstance(expected, str) or not expected.startswith("sha256:"):
+        raise GitError("Manifest checksum is missing", code="PLAN_MANIFEST_INVALID")
+    if _manifest_payload_sha256(manifest) != expected:
+        raise GitError("Manifest checksum does not match", code="PLAN_MANIFEST_INVALID")
+
+
+def _validate_manifest_transition(previous_status: str | None, next_status: str) -> None:
+    if previous_status == next_status:
+        return
+    allowed = TRANSACTION_MANIFEST_TRANSITIONS.get(previous_status)
+    if allowed is None or next_status not in allowed:
+        raise GitError(
+            "Transaction manifest state transition is not allowed",
+            code="PLAN_STATE_INVALID",
+            details={"previous_status": previous_status, "next_status": next_status},
+        )
+
+
 def _write_manifest(project_root: Path, manifest: dict[str, Any]) -> Path:
     transaction_uuid = manifest["transaction_uuid"]
     manifest_path = _manifest_path(project_root, transaction_uuid)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    manifest["transaction_manifest_schema_version"] = TRANSACTION_MANIFEST_SCHEMA_VERSION
+    manifest["manifest_payload_sha256"] = _manifest_payload_sha256(manifest)
+    if manifest_path.exists():
+        previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+        _validate_manifest_structure(previous, strict=False)
+        _validate_manifest_transition(previous.get("status"), manifest["status"])
+    temp_path = manifest_path.with_name(manifest_path.name + ".tmp")
+    temp_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(temp_path, manifest_path)
     return manifest_path
 
 
@@ -663,21 +758,28 @@ def _read_manifest(project_root: Path, transaction_uuid: str) -> dict[str, Any]:
     manifest_path = _manifest_path(project_root, transaction_uuid)
     if not manifest_path.exists():
         raise GitError("Recovery manifest not found", code="PLAN_RECOVERY_REQUIRED")
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _validate_manifest_structure(manifest, strict=False)
+    return manifest
 
 
 def _find_incomplete_manifest(project_root: Path) -> dict[str, Any] | None:
     root = _transaction_root(project_root)
     if not root.exists():
         return None
+    found: dict[str, Any] | None = None
     for manifest_path in sorted(root.glob("*/manifest.json")):
         try:
             data = json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception:
-            return {"status": "recovery_required", "manifest_path": str(manifest_path)}
+            raise GitError("Transaction manifest is invalid", code="PLAN_MANIFEST_INVALID")
+        _validate_manifest_structure(data, strict=False)
         if data.get("status") in INCOMPLETE_TRANSACTION_STATUSES:
-            return data
-    return None
+            if found is not None:
+                raise GitError("Multiple incomplete transaction manifests were found", code="PLAN_RECOVERY_CONFLICT")
+            found = data
+            found["manifest_path"] = str(manifest_path)
+    return found
 
 
 def _ensure_no_recovery_required(project_root: Path) -> None:
@@ -695,14 +797,14 @@ def _write_actual_files(
     manifest_path = _manifest_path(project_root, manifest["transaction_uuid"])
     transaction_dir = manifest_path.parent
     preimages_dir = transaction_dir / "preimages"
-    for rel_path, final_bytes in after_bytes_by_file.items():
-        target = project_root / rel_path
-        backup = before_bytes_by_file[rel_path]
-        manifest["status"] = "writing"
-        _write_manifest(project_root, manifest)
+    manifest["status"] = "writing"
+    _write_manifest(project_root, manifest)
+    for rel_path, backup in before_bytes_by_file.items():
         preimage_path = preimages_dir / rel_path
         preimage_path.parent.mkdir(parents=True, exist_ok=True)
         preimage_path.write_bytes(backup)
+    for rel_path, final_bytes in after_bytes_by_file.items():
+        target = project_root / rel_path
         temp_path = target.with_name(target.name + ".surepython.tmp")
         temp_path.write_bytes(final_bytes)
         try:
@@ -711,6 +813,7 @@ def _write_actual_files(
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)
             raise
+        _inject_plan_fault("apply:file-written")
 
 
 def _restore_preimages(project_root: Path, before_bytes_by_file: dict[str, bytes], manifest: dict[str, Any]) -> bool:
@@ -724,6 +827,7 @@ def _restore_preimages(project_root: Path, before_bytes_by_file: dict[str, bytes
         except Exception:
             restored = False
             break
+        _inject_plan_fault("rollback:file-restored")
     if restored:
         for rel_path, original_bytes in before_bytes_by_file.items():
             if sha256_file(project_root / rel_path) != _hash_bytes(original_bytes):
@@ -745,8 +849,9 @@ def apply_plan(
     if not expected_preview_hash:
         raise GitError("Plan apply requires a preview hash", code="PLAN_PREVIEW_HASH_REQUIRED")
     plan_spec = load_plan_spec(plan_path)
-    context = ensure_clean_git_repo(project_root or Path.cwd())
+    context = ensure_git_context(project_root or Path.cwd())
     _ensure_no_recovery_required(context.root)
+    context = ensure_clean_git_repo(context.root)
     simulation = _simulate_plan(plan_spec, context.root)
     if simulation.preview_hash != expected_preview_hash:
         raise GitError(
@@ -771,6 +876,7 @@ def apply_plan(
         "files": [],
     }
     _write_manifest(context.root, manifest)
+    _inject_plan_fault("apply:manifest-written")
 
     before_bytes_by_file = simulation.before_bytes_by_file
     after_bytes_by_file = simulation.after_bytes_by_file
@@ -787,6 +893,7 @@ def apply_plan(
 
     try:
         _write_actual_files(context.root, after_bytes_by_file, before_bytes_by_file, manifest)
+        _inject_plan_fault("apply:files-written")
         if run_tests:
             manifest["status"] = "testing"
             _write_manifest(context.root, manifest)
@@ -813,6 +920,7 @@ def apply_plan(
                     code="PLAN_TESTS_FAILED",
                     details={"exit_code": completed.returncode},
                 )
+            _inject_plan_fault("apply:tests-passed")
 
         manifest["status"] = "logging"
         _write_manifest(context.root, manifest)
@@ -831,6 +939,7 @@ def apply_plan(
             status="tested" if run_tests else "applied",
             message="Applied transactional plan" if not run_tests else "Applied transactional plan and ran tests",
         )
+        _inject_plan_fault("apply:db-committed")
     except GitError:
         raise
     except Exception as exc:
@@ -842,6 +951,7 @@ def apply_plan(
 
     manifest["status"] = "complete"
     _write_manifest(context.root, manifest)
+    _inject_plan_fault("apply:complete")
     return PlanApplyResult(
         plan_schema_version=plan_spec.plan_schema_version,
         name=plan_spec.name,
@@ -985,8 +1095,9 @@ def rollback_plan(
     project_root: Path | None = None,
     dry_run: bool = False,
 ) -> PlanRollbackResult:
-    root = ensure_clean_git_repo(project_root or Path.cwd()).root
+    root = ensure_git_context(project_root or Path.cwd()).root
     _ensure_no_recovery_required(root)
+    root = ensure_clean_git_repo(root).root
     if plan_id is None and not last:
         raise GitError("plan rollback requires --last or --id", code="PLAN_INVALID")
     if plan_id is not None and last:
@@ -1088,55 +1199,64 @@ def rollback_plan(
         ],
     }
     _write_manifest(root, manifest)
+    _inject_plan_fault("rollback:manifest-written")
     restored_ok = _restore_preimages(root, before_bytes_by_file, manifest)
     if not restored_ok:
         manifest["status"] = "recovery_required"
         _write_manifest(root, manifest)
         raise GitError("Plan rollback failed", code="PLAN_ROLLBACK_FAILED")
+    _inject_plan_fault("rollback:files-restored")
 
-    manifest["status"] = "logging"
-    _write_manifest(root, manifest)
-    rollback_row_id = insert_plan_bundle(
-        db_path,
-        PlanRecord(
-            created_at=now_utc_iso(),
-            project_path=plan_row.project_path,
-            plan_uuid=str(uuid.uuid4()),
-            client_plan_id=plan_row.client_plan_id,
-            name=plan_row.name,
-            description=plan_row.description,
-            plan_schema_version=plan_row.plan_schema_version,
-            plan_path=plan_row.plan_path,
-            metadata_json=plan_row.metadata_json,
-            preview_hash=plan_row.preview_hash,
-            status="rolled_back",
-            step_count=0,
-            file_count=len(files),
-            tests_requested=False,
-            tests_passed=None,
-            started_at=now_utc_iso(),
-            completed_at=now_utc_iso(),
-            error_code=None,
-            rollback_of_plan_id=plan_row.id,
-            source_plan_id=plan_row.id,
-            message="Rolled back transactional plan.",
-        ),
-        [],
-        [
-            PlanFileRecord(
-                plan_id=0,
-                file=row.file,
-                before_sha256=row.after_sha256,
-                after_sha256=row.before_sha256,
-                before_bytes=row.after_bytes,
-                after_bytes=row.before_bytes,
-                restored=True,
-            )
-            for row in files
-        ],
-    )
-    manifest["status"] = "complete"
-    _write_manifest(root, manifest)
+    try:
+        manifest["status"] = "logging"
+        _write_manifest(root, manifest)
+        rollback_row_id = insert_plan_bundle(
+            db_path,
+            PlanRecord(
+                created_at=now_utc_iso(),
+                project_path=plan_row.project_path,
+                plan_uuid=str(uuid.uuid4()),
+                client_plan_id=plan_row.client_plan_id,
+                name=plan_row.name,
+                description=plan_row.description,
+                plan_schema_version=plan_row.plan_schema_version,
+                plan_path=plan_row.plan_path,
+                metadata_json=plan_row.metadata_json,
+                preview_hash=plan_row.preview_hash,
+                status="rolled_back",
+                step_count=0,
+                file_count=len(files),
+                tests_requested=False,
+                tests_passed=None,
+                started_at=now_utc_iso(),
+                completed_at=now_utc_iso(),
+                error_code=None,
+                rollback_of_plan_id=plan_row.id,
+                source_plan_id=plan_row.id,
+                message="Rolled back transactional plan.",
+            ),
+            [],
+            [
+                PlanFileRecord(
+                    plan_id=0,
+                    file=row.file,
+                    before_sha256=row.after_sha256,
+                    after_sha256=row.before_sha256,
+                    before_bytes=row.after_bytes,
+                    after_bytes=row.before_bytes,
+                    restored=True,
+                )
+                for row in files
+            ],
+        )
+        _inject_plan_fault("rollback:db-committed")
+        manifest["status"] = "complete"
+        _write_manifest(root, manifest)
+        _inject_plan_fault("rollback:complete")
+    except Exception as exc:
+        manifest["status"] = "recovery_required"
+        _write_manifest(root, manifest)
+        raise GitError("Plan rollback failed", code="PLAN_ROLLBACK_FAILED") from exc
 
     original = _plan_result_from_db(plan_row.id, db_path=db_path, project_root=root, preview_hash=plan_row.preview_hash)
     return dataclasses.replace(
@@ -1161,6 +1281,7 @@ def recover_plan(*, project_root: Path | None = None) -> dict[str, Any]:
     transaction_dir = manifest_path.parent
     preimages = transaction_dir / "preimages"
     restored = True
+    _inject_plan_fault("recover:manifest-read")
     for file_info in manifest.get("files", []):
         target = root / file_info["file"]
         preimage_path = preimages / file_info["file"]
@@ -1171,8 +1292,11 @@ def recover_plan(*, project_root: Path | None = None) -> dict[str, Any]:
         if sha256_file(target) != file_info["before_sha256"]:
             restored = False
             break
+        _inject_plan_fault("recover:file-restored")
+    _inject_plan_fault("recover:files-restored")
     manifest["status"] = "recovered" if restored else "recovery_required"
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    _write_manifest(root, manifest)
+    _inject_plan_fault("recover:manifest-written")
     return {
         "written": restored,
         "recovered": restored,

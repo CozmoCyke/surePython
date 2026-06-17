@@ -24,6 +24,7 @@ from .codemods import (
 from .datasette_log import insert_record, read_last_operation
 from .git_tools import GitError, find_git_root, git_diff
 from .plans import apply_plan, preview_plan, recover_plan, rollback_plan as rollback_transactional_plan
+from .transaction_lock import acquire_project_mutation_lock
 from .protocol import (
     EXIT_INTERNAL,
     build_protocol_response,
@@ -63,6 +64,11 @@ def _print_json_response(payload: dict[str, object]) -> None:
 
 def _build_error_payload(exc: ProtocolError) -> dict[str, object]:
     return exc.to_payload()
+
+
+def _mutation_root_for(path: Path) -> Path:
+    git_root = find_git_root(path)
+    return git_root if git_root is not None else path.resolve()
 
 
 def _build_operation_result_payload(command: str, result, output_format: str, dry_run: bool) -> dict[str, object]:
@@ -325,15 +331,16 @@ def _cmd_add_docstring(
     output_format: str,
 ) -> int:
     try:
-        result = add_docstring(
-            file_path,
-            function,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-docstring"):
+            result = add_docstring(
+                file_path,
+                function,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("add-docstring", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -405,16 +412,17 @@ def _cmd_remove_docstring(
     output_format: str,
 ) -> int:
     try:
-        result = remove_docstring(
-            file_path,
-            symbol,
-            expect_docstring,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-docstring"):
+            result = remove_docstring(
+                file_path,
+                symbol,
+                expect_docstring,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error(
             "remove-docstring",
@@ -495,15 +503,16 @@ def _cmd_add_import(
     output_format: str,
 ) -> int:
     try:
-        result = add_import(
-            file_path,
-            statement,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-import"):
+            result = add_import(
+                file_path,
+                statement,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("add-import", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -575,15 +584,16 @@ def _cmd_remove_import(
     output_format: str,
 ) -> int:
     try:
-        result = remove_import(
-            file_path,
-            expect_statement,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-import"):
+            result = remove_import(
+                file_path,
+                expect_statement,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("remove-import", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -669,17 +679,18 @@ def _cmd_add_decorator(
         exc = GitError("Decorator position is required", code="DECORATOR_POSITION_REQUIRED")
         return _emit_error("add-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
     try:
-        result = add_decorator(
-            file_path,
-            symbol,
-            decorator,
-            position,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-decorator"):
+            result = add_decorator(
+                file_path,
+                symbol,
+                decorator,
+                position,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("add-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -764,17 +775,18 @@ def _cmd_remove_decorator(
         exc = GitError("Decorator position is required", code="DECORATOR_POSITION_REQUIRED")
         return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
     try:
-        result = remove_decorator(
-            file_path,
-            symbol,
-            expected_decorator,
-            expected_position,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-decorator"):
+            result = remove_decorator(
+                file_path,
+                symbol,
+                expected_decorator,
+                expected_position,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("remove-decorator", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -851,16 +863,17 @@ def _cmd_add_return_type(
     output_format: str,
 ) -> int:
     try:
-        result = add_return_type(
-            file_path,
-            function,
-            annotation,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-return-type"):
+            result = add_return_type(
+                file_path,
+                function,
+                annotation,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("add-return-type", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -933,16 +946,17 @@ def _cmd_remove_return_type(
     output_format: str,
 ) -> int:
     try:
-        result = remove_return_type(
-            file_path,
-            function,
-            expected_annotation,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-return-type"):
+            result = remove_return_type(
+                file_path,
+                function,
+                expected_annotation,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error(
             "remove-return-type",
@@ -1022,17 +1036,18 @@ def _cmd_remove_parameter_type(
     output_format: str,
 ) -> int:
     try:
-        result = remove_parameter_type(
-            file_path,
-            function,
-            parameter,
-            expected_annotation,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "remove-parameter-type"):
+            result = remove_parameter_type(
+                file_path,
+                function,
+                parameter,
+                expected_annotation,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error(
             "remove-parameter-type",
@@ -1115,17 +1130,18 @@ def _cmd_add_parameter_type(
     output_format: str,
 ) -> int:
     try:
-        result = add_parameter_type(
-            file_path,
-            function,
-            parameter,
-            annotation,
-            project_root=file_path.parent,
-            db_path=db,
-            run_tests=test,
-            test_command=test_command,
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(file_path.parent), "add-parameter-type"):
+            result = add_parameter_type(
+                file_path,
+                function,
+                parameter,
+                annotation,
+                project_root=file_path.parent,
+                db_path=db,
+                run_tests=test,
+                test_command=test_command,
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error("add-parameter-type", exc, output_format, meta={"dry_run": dry_run, "format": output_format})
 
@@ -1216,20 +1232,19 @@ def _cmd_log(db: Path) -> int:
 
 def _cmd_rollback(last: bool, operation_id: int | None, db: Path, dry_run: bool, output_format: str) -> int:
     try:
-        if last and operation_id is not None:
-            raise GitError(
-                "Rollback accepts either --last or --id, not both",
-                code="ROLLBACK_SELECTOR_CONFLICT",
-            )
-        if not last and operation_id is None:
-            raise GitError("Rollback requires --last or --id", code="OPERATION_ID_REQUIRED")
-        if operation_id is not None:
-            current_root = find_git_root(Path.cwd())
-            if current_root is None:
-                raise GitError("Not a git repository", code="GIT_NOT_REPOSITORY")
-            result = rollback_by_id(db, operation_id, dry_run=dry_run, current_root=current_root)
-        else:
-            result = rollback_last(db, dry_run=dry_run)
+        current_root = _mutation_root_for(Path.cwd())
+        with acquire_project_mutation_lock(current_root, "rollback"):
+            if last and operation_id is not None:
+                raise GitError(
+                    "Rollback accepts either --last or --id, not both",
+                    code="ROLLBACK_SELECTOR_CONFLICT",
+                )
+            if not last and operation_id is None:
+                raise GitError("Rollback requires --last or --id", code="OPERATION_ID_REQUIRED")
+            if operation_id is not None:
+                result = rollback_by_id(db, operation_id, dry_run=dry_run, current_root=current_root)
+            else:
+                result = rollback_last(db, dry_run=dry_run)
     except FileNotFoundError as exc:
         return _emit_error(
             "rollback",
@@ -1271,7 +1286,8 @@ def _cmd_rollback(last: bool, operation_id: int | None, db: Path, dry_run: bool,
 
 def _cmd_plan_preview(plan_path: Path, output_format: str) -> int:
     try:
-        result = preview_plan(plan_path, project_root=Path.cwd())
+        with acquire_project_mutation_lock(_mutation_root_for(Path.cwd()), "plan preview"):
+            result = preview_plan(plan_path, project_root=Path.cwd())
     except GitError as exc:
         return _emit_error(
             "plan",
@@ -1309,13 +1325,14 @@ def _cmd_plan_preview(plan_path: Path, output_format: str) -> int:
 
 def _cmd_plan_apply(plan_path: Path, expected_preview_hash: str, test: bool, db: Path, output_format: str) -> int:
     try:
-        result = apply_plan(
-            plan_path,
-            expected_preview_hash,
-            project_root=Path.cwd(),
-            db_path=db,
-            run_tests=test,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(Path.cwd()), "plan apply"):
+            result = apply_plan(
+                plan_path,
+                expected_preview_hash,
+                project_root=Path.cwd(),
+                db_path=db,
+                run_tests=test,
+            )
     except GitError as exc:
         return _emit_error(
             "plan",
@@ -1367,13 +1384,14 @@ def _cmd_plan_rollback(
     output_format: str,
 ) -> int:
     try:
-        result = rollback_transactional_plan(
-            db,
-            plan_id=plan_id,
-            last=last,
-            project_root=Path.cwd(),
-            dry_run=dry_run,
-        )
+        with acquire_project_mutation_lock(_mutation_root_for(Path.cwd()), "plan rollback"):
+            result = rollback_transactional_plan(
+                db,
+                plan_id=plan_id,
+                last=last,
+                project_root=Path.cwd(),
+                dry_run=dry_run,
+            )
     except GitError as exc:
         return _emit_error(
             "plan",
@@ -1413,7 +1431,8 @@ def _cmd_plan_rollback(
 
 def _cmd_plan_recover(output_format: str) -> int:
     try:
-        result = recover_plan(project_root=Path.cwd())
+        with acquire_project_mutation_lock(_mutation_root_for(Path.cwd()), "plan recover"):
+            result = recover_plan(project_root=Path.cwd())
     except GitError as exc:
         return _emit_error(
             "plan",

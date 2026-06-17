@@ -201,6 +201,9 @@ git status --short
 - Do not treat `legacy/unverifiable` records as rollbackable.
 - Do not run `plan apply` without the exact preview hash.
 - Do not treat an interrupted plan manifest as a successful apply.
+- Do not ignore `PROJECT_MUTATION_LOCKED`; another process is already mutating the project.
+- Do not continue after `PLAN_MANIFEST_INVALID`, `PLAN_STATE_INVALID`, or `PLAN_RECOVERY_CONFLICT` until the manifest is reviewed or recovered.
+- Do not bypass the project mutation lock to "make progress" faster.
 - Do not force-push or move release tags unless explicitly requested.
 - Do not ignore `protocol_schema_version` or `error.code` in JSON mode.
 

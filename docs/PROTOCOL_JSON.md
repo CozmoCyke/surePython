@@ -43,7 +43,7 @@ Field meanings:
 
 - `command`: the CLI command that ran
 - `ok`: `true` only when the command completed successfully
-- `status`: one of `preview`, `applied`, `tested`, `failed`, `rolled_back`, or `refused`
+- `status`: one of `preview`, `applied`, `tested`, `failed`, `rolled_back`, `recovered`, `noop`, or `refused`
 - `error`: structured error object when `ok` is `false`
 - `result`: command-specific payload, or `null` on refusal
 - `meta`: request metadata such as `dry_run`
@@ -116,6 +116,7 @@ Common codes include:
 - `UNKNOWN_SQLITE_OPERATION`
 - `HASH_MISMATCH`
 - `LEGACY_UNVERIFIABLE`
+- `PROJECT_MUTATION_LOCKED`
 - `TESTS_FAILED`
 - `DATABASE_ERROR`
 - `ROLLBACK_NOT_AVAILABLE`
@@ -145,6 +146,9 @@ Common codes include:
 - `PLAN_ALREADY_ROLLED_BACK`
 - `PLAN_ROLLBACK_FAILED`
 - `PLAN_RECOVERY_REQUIRED`
+- `PLAN_STATE_INVALID`
+- `PLAN_MANIFEST_INVALID`
+- `PLAN_RECOVERY_CONFLICT`
 - `ROLLBACK_SELECTOR_CONFLICT`
 - `INTERNAL_ERROR`
 
@@ -236,6 +240,17 @@ Plan responses are built around:
 - `protocol_schema_version` still equal to `"1.0"`
 
 Plan commands are required to keep `ok`, `status`, `error`, `result`, and `meta` deterministic and JSON-only when `--format json` is requested.
+
+Phase 3.1 tightens the plan protocol further:
+
+- `plan preview`, `plan apply`, `plan rollback`, and `plan recover` are guarded by the project mutation lock
+- `PROJECT_MUTATION_LOCKED` means another process is mutating the same project
+- `PLAN_STATE_INVALID` means the manifest state transition is not allowed
+- `PLAN_MANIFEST_INVALID` means the manifest payload is malformed or its checksum does not match
+- `PLAN_RECOVERY_CONFLICT` means more than one incomplete manifest was found for the same project
+- `recovered` and `noop` may appear in plan recovery responses
+
+These are still part of the `1.0` root envelope; the protocol schema version does not change.
 
 ## Text Compatibility
 

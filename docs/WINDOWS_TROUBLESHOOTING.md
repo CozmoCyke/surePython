@@ -140,6 +140,18 @@ python -m surepython plan recover --format json
 
 If the manifest says recovery is required, do not attempt to hand-edit the workspace or recreate the state from Git alone. The transaction workspace is the source of truth for that interrupted operation.
 
+## Project Mutation Lock
+
+On Windows, SurePython uses an OS-backed project mutation lock to prevent two processes from mutating the same project at the same time.
+
+If a command refuses with `PROJECT_MUTATION_LOCKED`:
+
+- another SurePython process is already holding the lock
+- wait for that process to finish, or stop it explicitly if it is stale
+- do not retry in a tight loop
+
+This is expected for `plan preview`, `plan apply`, `plan rollback`, `plan recover`, and the supported mutating micro-operations while another process is already writing.
+
 ## Clean Git Requirement
 
 Most SurePython write paths require a clean worktree.

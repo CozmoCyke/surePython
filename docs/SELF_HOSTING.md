@@ -90,6 +90,17 @@ Phase 2.3 is an honest self-hosting boundary case:
 - direct edits were therefore the correct fallback for the plan plumbing itself
 - once the relevant capability is available, future parameter removals, docstring removals, and grouped transactional changes should prefer SurePython
 
+## Phase 3.1 Note
+
+Phase 3.1 hardens the transaction runtime rather than adding a new public edit kind.
+
+- the project mutation lock is part of the execution contract
+- manifest checksums and state validation are required for transactional workspaces
+- recovery is now expected to be idempotent and conservative
+- fault injection checkpoints exist for test-only crash recovery smokes
+
+This phase is still a direct-edit fallback for SurePython's own plumbing, but the resulting transactional commands are now the preferred path for supported plans and mutating operations.
+
 Do not reduce the comparison to speed alone.
 
 ## Boundary

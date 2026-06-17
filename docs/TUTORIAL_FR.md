@@ -499,3 +499,16 @@ Ce parcours prouve que SurePython sait actuellement :
 - restaurer une opération cohérente sans approximation
 
 Il ne prouve pas que SurePython peut faire n'importe quelle modification Python. Ce n'est pas son rôle actuel.
+
+## 11. Phase 3.1: recovery hardening
+
+À partir de la phase 3.1, les opérations transactionnelles sont aussi protégées par un verrou projet et par des manifestes plus stricts.
+
+En pratique:
+
+- `plan preview`, `plan apply`, `plan rollback` et `plan recover` refusent `PROJECT_MUTATION_LOCKED` si un autre processus détient le verrou
+- les manifestes transactionnels sont écrits atomiquement et vérifiés par checksum
+- une récupération incohérente refuse avec `PLAN_MANIFEST_INVALID`, `PLAN_STATE_INVALID` ou `PLAN_RECOVERY_CONFLICT` selon le défaut
+- des points d'injection de panne ne servent qu'aux smokes et aux tests de récupération
+
+Le tutoriel reste valable, mais les smokes de la phase 3.1 servent à prouver le durcissement d'exécution, pas à élargir le périmètre fonctionnel.

@@ -49,6 +49,17 @@ SurePython separates reasoning from execution:
 
 A refusal is not a failure of the tool. A refusal protects the project.
 
+## Phase 3.1 Hardening
+
+Phase 3.1 keeps the same public operation set, but hardens how transactional work happens:
+
+- plan commands and mutating operations now take a project mutation lock so concurrent writers refuse with `PROJECT_MUTATION_LOCKED`
+- transactional manifests are written atomically and carry a schema version plus a payload checksum
+- recovery distinguishes invalid state, invalid manifest payloads, and conflicting incomplete manifests
+- fault injection checkpoints exist only for tests and crash-recovery smokes
+
+Recovery remains conservative: if SurePython cannot prove the state transition, it refuses instead of guessing.
+
 ## Commands
 
 ```powershell
