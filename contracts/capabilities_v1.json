@@ -1,0 +1,683 @@
+{
+  "capabilities_schema_version": "1.0",
+  "commands": [
+    {
+      "description": "Rollback one previously logged operation by --last or by explicit operation id.",
+      "mutually_exclusive_selectors": true,
+      "name": "rollback",
+      "optional_arguments": [
+        "last",
+        "id",
+        "dry-run",
+        "format"
+      ],
+      "possible_error_codes": [
+        "OPERATION_ID_REQUIRED",
+        "OPERATION_ID_INVALID",
+        "OPERATION_NOT_FOUND",
+        "ROLLBACK_SELECTOR_CONFLICT",
+        "ROLLBACK_ALREADY_APPLIED",
+        "ROLLBACK_RECORD_NOT_ALLOWED",
+        "PROJECT_MISMATCH",
+        "PROJECT_MUTATION_LOCKED",
+        "GIT_DIRTY",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "ROLLBACK_NOT_AVAILABLE",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "db"
+      ],
+      "selectors": [
+        "last",
+        "id"
+      ],
+      "status": "stable",
+      "supported_formats": [
+        "text",
+        "json"
+      ]
+    },
+    {
+      "description": "Preview, apply, rollback, or recover a transactional multi-operation plan.",
+      "mutually_exclusive_selectors": true,
+      "name": "plan",
+      "optional_arguments": [
+        "db",
+        "expect-preview-hash",
+        "id",
+        "last",
+        "dry-run",
+        "test",
+        "format"
+      ],
+      "possible_error_codes": [
+        "PLAN_INVALID_JSON",
+        "PLAN_SCHEMA_UNSUPPORTED",
+        "PLAN_INVALID",
+        "PLAN_EMPTY",
+        "PLAN_TOO_LARGE",
+        "PLAN_DUPLICATE_STEP_ID",
+        "PLAN_OPERATION_UNSUPPORTED",
+        "PLAN_ARGUMENTS_INVALID",
+        "PLAN_FILE_NOT_FOUND",
+        "PLAN_PREVIEW_MISMATCH",
+        "PLAN_PREVIEW_HASH_REQUIRED",
+        "PLAN_STEP_FAILED",
+        "PLAN_NO_FINAL_CHANGES",
+        "PLAN_TESTS_FAILED",
+        "PLAN_DATABASE_FAILED",
+        "PLAN_NOT_FOUND",
+        "PLAN_ALREADY_ROLLED_BACK",
+        "PLAN_ROLLBACK_FAILED",
+        "PLAN_RECOVERY_REQUIRED",
+        "PLAN_STATE_INVALID",
+        "PLAN_MANIFEST_INVALID",
+        "PLAN_RECOVERY_CONFLICT",
+        "ROLLBACK_SELECTOR_CONFLICT",
+        "PROJECT_MUTATION_LOCKED",
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "TARGET_UNSUPPORTED",
+        "DOCSTRING_EXISTS",
+        "ANNOTATION_REQUIRED",
+        "ANNOTATION_INVALID",
+        "ANNOTATION_EXISTS",
+        "RETURN_ANNOTATION_REQUIRED",
+        "RETURN_ANNOTATION_INVALID",
+        "RETURN_ANNOTATION_NOT_FOUND",
+        "RETURN_ANNOTATION_MISMATCH",
+        "PARAMETER_REQUIRED",
+        "PARAMETER_NOT_FOUND",
+        "PARAMETER_ANNOTATION_EXISTS",
+        "PARAMETER_KIND_UNSUPPORTED",
+        "PARAMETER_ANNOTATION_REQUIRED",
+        "PARAMETER_ANNOTATION_INVALID",
+        "PARAMETER_ANNOTATION_NOT_FOUND",
+        "PARAMETER_ANNOTATION_MISMATCH",
+        "DECORATOR_REQUIRED",
+        "DECORATOR_INVALID",
+        "DECORATOR_POSITION_REQUIRED",
+        "DECORATOR_POSITION_INVALID",
+        "DECORATOR_NOT_FOUND",
+        "DECORATOR_POSITION_MISMATCH",
+        "DECORATOR_TARGET_UNSUPPORTED",
+        "DECORATOR_ALREADY_EXISTS",
+        "DECORATOR_CONFLICT",
+        "IMPORT_STATEMENT_REQUIRED",
+        "IMPORT_STATEMENT_INVALID",
+        "IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED",
+        "IMPORT_WILDCARD_UNSUPPORTED",
+        "IMPORT_RELATIVE_UNSUPPORTED",
+        "IMPORT_ALREADY_EXISTS",
+        "IMPORT_BINDING_CONFLICT",
+        "IMPORT_PLACEMENT_UNSUPPORTED",
+        "IMPORT_NOT_FOUND",
+        "IMPORT_AMBIGUOUS",
+        "IMPORT_SCOPE_UNSUPPORTED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "plan_file"
+      ],
+      "selectors": [
+        "preview",
+        "apply",
+        "rollback",
+        "recover"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "description": "Add one skeleton docstring to one function or method without an existing docstring.",
+      "name": "add-docstring",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "DOCSTRING_EXISTS",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "function"
+      ],
+      "status": "stable",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Remove one exact docstring from one supported module, class, function, or method after verifying the expected logical text.",
+      "name": "remove-docstring",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "DOCSTRING_REQUIRED",
+        "DOCSTRING_NOT_FOUND",
+        "DOCSTRING_MISMATCH",
+        "DOCSTRING_TARGET_UNSUPPORTED",
+        "DOCSTRING_INLINE_SUITE_UNSUPPORTED",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "symbol",
+        "expect-docstring"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "module",
+        "class",
+        "function",
+        "method"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Add one explicit return annotation to one function or method without an existing return annotation.",
+      "name": "add-return-type",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "TARGET_UNSUPPORTED",
+        "ANNOTATION_REQUIRED",
+        "ANNOTATION_INVALID",
+        "ANNOTATION_EXISTS",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "function",
+        "annotation"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Remove one explicit return annotation from one function or method after verifying the expected annotation.",
+      "name": "remove-return-type",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "TARGET_UNSUPPORTED",
+        "RETURN_ANNOTATION_REQUIRED",
+        "RETURN_ANNOTATION_INVALID",
+        "RETURN_ANNOTATION_NOT_FOUND",
+        "RETURN_ANNOTATION_MISMATCH",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "function",
+        "expect-annotation"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Remove one explicit parameter annotation from one function or method after verifying the expected annotation.",
+      "name": "remove-parameter-type",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "TARGET_UNSUPPORTED",
+        "PARAMETER_REQUIRED",
+        "PARAMETER_NOT_FOUND",
+        "PARAMETER_ANNOTATION_REQUIRED",
+        "PARAMETER_ANNOTATION_INVALID",
+        "PARAMETER_ANNOTATION_NOT_FOUND",
+        "PARAMETER_ANNOTATION_MISMATCH",
+        "PARAMETER_KIND_UNSUPPORTED",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "function",
+        "parameter",
+        "expect-annotation"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [
+        "positional-only",
+        "positional-or-keyword",
+        "keyword-only"
+      ],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method"
+      ],
+      "unsupported_parameter_kinds": [
+        "var-positional",
+        "var-keyword"
+      ]
+    },
+    {
+      "description": "Add one explicit type annotation to one parameter on one function or method without an existing annotation.",
+      "name": "add-parameter-type",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "TARGET_UNSUPPORTED",
+        "PARAMETER_REQUIRED",
+        "PARAMETER_NOT_FOUND",
+        "PARAMETER_ANNOTATION_EXISTS",
+        "PARAMETER_KIND_UNSUPPORTED",
+        "ANNOTATION_REQUIRED",
+        "ANNOTATION_INVALID",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "function",
+        "parameter",
+        "annotation"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [
+        "positional-only",
+        "positional-or-keyword",
+        "keyword-only"
+      ],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method"
+      ],
+      "unsupported_parameter_kinds": [
+        "var-positional",
+        "var-keyword"
+      ]
+    },
+    {
+      "description": "Add one explicit top-level import statement with a single binding to one module file.",
+      "name": "add-import",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "IMPORT_STATEMENT_REQUIRED",
+        "IMPORT_STATEMENT_INVALID",
+        "IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED",
+        "IMPORT_WILDCARD_UNSUPPORTED",
+        "IMPORT_RELATIVE_UNSUPPORTED",
+        "IMPORT_ALREADY_EXISTS",
+        "IMPORT_BINDING_CONFLICT",
+        "IMPORT_PLACEMENT_UNSUPPORTED",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "statement"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "module"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Add one explicit decorator expression to one supported function, method, or class without changing the rest of the definition.",
+      "name": "add-decorator",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "DECORATOR_REQUIRED",
+        "DECORATOR_INVALID",
+        "DECORATOR_POSITION_REQUIRED",
+        "DECORATOR_POSITION_INVALID",
+        "DECORATOR_TARGET_UNSUPPORTED",
+        "DECORATOR_ALREADY_EXISTS",
+        "DECORATOR_CONFLICT",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "symbol",
+        "decorator",
+        "position"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method",
+        "class"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Remove one explicit decorator expression from one supported function, method, or class after verifying the expected expression and position.",
+      "name": "remove-decorator",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "TARGET_NOT_FOUND",
+        "TARGET_AMBIGUOUS",
+        "DECORATOR_REQUIRED",
+        "DECORATOR_INVALID",
+        "DECORATOR_POSITION_REQUIRED",
+        "DECORATOR_POSITION_INVALID",
+        "DECORATOR_NOT_FOUND",
+        "DECORATOR_POSITION_MISMATCH",
+        "DECORATOR_TARGET_UNSUPPORTED",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "symbol",
+        "expect-decorator",
+        "expect-position"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "function",
+        "method",
+        "class"
+      ],
+      "unsupported_parameter_kinds": []
+    },
+    {
+      "description": "Remove one exact module-level import statement with a single binding after verifying the expected statement structure.",
+      "name": "remove-import",
+      "optional_arguments": [
+        "dry-run",
+        "test",
+        "db",
+        "format"
+      ],
+      "possible_error_codes": [
+        "GIT_NOT_REPOSITORY",
+        "GIT_DIRTY",
+        "FILE_NOT_FOUND",
+        "FILE_OUTSIDE_PROJECT",
+        "IMPORT_STATEMENT_REQUIRED",
+        "IMPORT_STATEMENT_INVALID",
+        "IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED",
+        "IMPORT_WILDCARD_UNSUPPORTED",
+        "IMPORT_RELATIVE_UNSUPPORTED",
+        "IMPORT_NOT_FOUND",
+        "IMPORT_AMBIGUOUS",
+        "IMPORT_SCOPE_UNSUPPORTED",
+        "PARSE_ERROR",
+        "TESTS_FAILED",
+        "UNKNOWN_SQLITE_OPERATION",
+        "HASH_MISMATCH",
+        "LEGACY_UNVERIFIABLE",
+        "PROJECT_MUTATION_LOCKED",
+        "DATABASE_ERROR",
+        "INTERNAL_ERROR"
+      ],
+      "required_arguments": [
+        "file",
+        "expect-statement"
+      ],
+      "status": "experimental",
+      "supported_formats": [
+        "text",
+        "json"
+      ],
+      "supported_parameter_kinds": [],
+      "supports_dry_run": true,
+      "supports_logging": true,
+      "supports_rollback": true,
+      "supports_tests": true,
+      "targets": [
+        "module"
+      ],
+      "unsupported_parameter_kinds": []
+    }
+  ],
+  "protocol_schema_version": "1.0"
+}

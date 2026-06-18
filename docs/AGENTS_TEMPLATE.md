@@ -33,6 +33,8 @@ Current machine-readable protocol:
 
 - request `--format json` when the agent needs a stable response envelope
 
+The public contract should be validated against `contracts/public_contract_v1.json` and `tools/check_contracts.py` when a project uses a frozen SurePython release.
+
 ## Mandatory Workflow
 
 Before a SurePython modification:

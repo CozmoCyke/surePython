@@ -2,6 +2,7 @@
 
 This document defines the JSON shape consumed by `python -m surepython plan preview`.
 The schema is intentionally minimal so the same plan can be previewed, applied, rolled back, or recovered without rewriting the plan file itself.
+The machine-readable snapshot is `contracts/plan_schema_v1.json`.
 
 ## Top Level
 

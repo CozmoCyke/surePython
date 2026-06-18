@@ -163,3 +163,13 @@ git status --short
 ```
 
 If it is not empty, decide explicitly whether to commit, stash, or stop. Do not let an agent work around this guardrail silently.
+
+## Contract Validation On Windows
+
+The public contract validator runs from the repository root:
+
+```powershell
+python tools/check_contracts.py
+```
+
+If it fails, the code, snapshots, or normative docs have drifted and need to be reconciled before release.

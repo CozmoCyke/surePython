@@ -49,6 +49,29 @@ SurePython separates reasoning from execution:
 
 A refusal is not a failure of the tool. A refusal protects the project.
 
+## Public Contract Freeze
+
+Phase 3.2 freezes the public contract before the release candidate.
+
+The canonical snapshots are:
+
+- `contracts/public_contract_v1.json`
+- `contracts/cli_contract_v1.json`
+- `contracts/capabilities_v1.json`
+- `contracts/error_registry_v1.json`
+- `contracts/protocol_envelope_v1.json`
+- `contracts/plan_schema_v1.json`
+- `contracts/sqlite_schema_v1.json`
+- `contracts/fixtures/preview_hash_vectors.json`
+
+The validator is:
+
+```powershell
+python tools/check_contracts.py
+```
+
+It compares the current code against the frozen contract and validates the normative docs.
+
 ## Phase 3.1 Hardening
 
 Phase 3.1 keeps the same public operation set, but hardens how transactional work happens:

@@ -2,6 +2,8 @@
 
 Ce tutoriel montre le parcours SurePython actuel de bout en bout.
 
+La phase 3.2 fige le contrat public dans les snapshots `contracts/` et les valide avec `tools/check_contracts.py`.
+
 Objectif :
 
 ```text
@@ -68,6 +70,7 @@ Avant de demander une opération à SurePython, Codex doit pouvoir interroger le
 ```
 
 Cette sortie est le contrat machine-readable. Elle évite à Codex de deviner les opérations disponibles.
+Le snapshot correspondant vit dans `contracts/capabilities_v1.json`.
 
 Sortie texte humaine :
 

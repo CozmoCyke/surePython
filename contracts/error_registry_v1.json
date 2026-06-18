@@ -1,0 +1,1245 @@
+{
+  "contract_version": "1.0",
+  "error_codes": {
+    "ANNOTATION_EXISTS": {
+      "category": "annotation",
+      "code": "ANNOTATION_EXISTS",
+      "commands": [
+        "add-return-type",
+        "plan"
+      ],
+      "description": "Annotation exists",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "ANNOTATION_INVALID": {
+      "category": "annotation",
+      "code": "ANNOTATION_INVALID",
+      "commands": [
+        "add-parameter-type",
+        "add-return-type",
+        "plan"
+      ],
+      "description": "Annotation invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "ANNOTATION_REQUIRED": {
+      "category": "annotation",
+      "code": "ANNOTATION_REQUIRED",
+      "commands": [
+        "add-parameter-type",
+        "add-return-type",
+        "plan"
+      ],
+      "description": "Annotation required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DATABASE_ERROR": {
+      "category": "storage",
+      "code": "DATABASE_ERROR",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Database error",
+      "exit_code": 5,
+      "project_modified": true,
+      "recovery_required": false,
+      "retryable": true
+    },
+    "DECORATOR_ALREADY_EXISTS": {
+      "category": "decorator",
+      "code": "DECORATOR_ALREADY_EXISTS",
+      "commands": [
+        "add-decorator",
+        "plan"
+      ],
+      "description": "Decorator already exists",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_CONFLICT": {
+      "category": "decorator",
+      "code": "DECORATOR_CONFLICT",
+      "commands": [
+        "add-decorator",
+        "plan"
+      ],
+      "description": "Decorator conflict",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_INVALID": {
+      "category": "decorator",
+      "code": "DECORATOR_INVALID",
+      "commands": [
+        "add-decorator",
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_NOT_FOUND": {
+      "category": "decorator",
+      "code": "DECORATOR_NOT_FOUND",
+      "commands": [
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_POSITION_INVALID": {
+      "category": "decorator",
+      "code": "DECORATOR_POSITION_INVALID",
+      "commands": [
+        "add-decorator",
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator position invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_POSITION_MISMATCH": {
+      "category": "decorator",
+      "code": "DECORATOR_POSITION_MISMATCH",
+      "commands": [
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator position mismatch",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_POSITION_REQUIRED": {
+      "category": "decorator",
+      "code": "DECORATOR_POSITION_REQUIRED",
+      "commands": [
+        "add-decorator",
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator position required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_REQUIRED": {
+      "category": "decorator",
+      "code": "DECORATOR_REQUIRED",
+      "commands": [
+        "add-decorator",
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DECORATOR_TARGET_UNSUPPORTED": {
+      "category": "decorator",
+      "code": "DECORATOR_TARGET_UNSUPPORTED",
+      "commands": [
+        "add-decorator",
+        "plan",
+        "remove-decorator"
+      ],
+      "description": "Decorator target unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DOCSTRING_EXISTS": {
+      "category": "docstring",
+      "code": "DOCSTRING_EXISTS",
+      "commands": [
+        "add-docstring",
+        "plan"
+      ],
+      "description": "Docstring exists",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DOCSTRING_INLINE_SUITE_UNSUPPORTED": {
+      "category": "docstring",
+      "code": "DOCSTRING_INLINE_SUITE_UNSUPPORTED",
+      "commands": [
+        "remove-docstring"
+      ],
+      "description": "Docstring inline suite unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DOCSTRING_MISMATCH": {
+      "category": "docstring",
+      "code": "DOCSTRING_MISMATCH",
+      "commands": [
+        "remove-docstring"
+      ],
+      "description": "Docstring mismatch",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DOCSTRING_NOT_FOUND": {
+      "category": "docstring",
+      "code": "DOCSTRING_NOT_FOUND",
+      "commands": [
+        "remove-docstring"
+      ],
+      "description": "Docstring not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DOCSTRING_REQUIRED": {
+      "category": "docstring",
+      "code": "DOCSTRING_REQUIRED",
+      "commands": [
+        "remove-docstring"
+      ],
+      "description": "Docstring required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "DOCSTRING_TARGET_UNSUPPORTED": {
+      "category": "docstring",
+      "code": "DOCSTRING_TARGET_UNSUPPORTED",
+      "commands": [
+        "remove-docstring"
+      ],
+      "description": "Docstring target unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "FILE_NOT_FOUND": {
+      "category": "filesystem",
+      "code": "FILE_NOT_FOUND",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "File not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "FILE_OUTSIDE_PROJECT": {
+      "category": "filesystem",
+      "code": "FILE_OUTSIDE_PROJECT",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "File outside project",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "GIT_DIRTY": {
+      "category": "git",
+      "code": "GIT_DIRTY",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Git dirty",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "GIT_NOT_REPOSITORY": {
+      "category": "git",
+      "code": "GIT_NOT_REPOSITORY",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "Git not repository",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "HASH_MISMATCH": {
+      "category": "security",
+      "code": "HASH_MISMATCH",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Hash mismatch",
+      "exit_code": 4,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_ALREADY_EXISTS": {
+      "category": "import",
+      "code": "IMPORT_ALREADY_EXISTS",
+      "commands": [
+        "add-import",
+        "plan"
+      ],
+      "description": "Import already exists",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_AMBIGUOUS": {
+      "category": "import",
+      "code": "IMPORT_AMBIGUOUS",
+      "commands": [
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import ambiguous",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_BINDING_CONFLICT": {
+      "category": "import",
+      "code": "IMPORT_BINDING_CONFLICT",
+      "commands": [
+        "add-import",
+        "plan"
+      ],
+      "description": "Import binding conflict",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED": {
+      "category": "import",
+      "code": "IMPORT_MULTIPLE_BINDINGS_UNSUPPORTED",
+      "commands": [
+        "add-import",
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import multiple bindings unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_NOT_FOUND": {
+      "category": "import",
+      "code": "IMPORT_NOT_FOUND",
+      "commands": [
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_PLACEMENT_UNSUPPORTED": {
+      "category": "import",
+      "code": "IMPORT_PLACEMENT_UNSUPPORTED",
+      "commands": [
+        "add-import",
+        "plan"
+      ],
+      "description": "Import placement unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_RELATIVE_UNSUPPORTED": {
+      "category": "import",
+      "code": "IMPORT_RELATIVE_UNSUPPORTED",
+      "commands": [
+        "add-import",
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import relative unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_SCOPE_UNSUPPORTED": {
+      "category": "import",
+      "code": "IMPORT_SCOPE_UNSUPPORTED",
+      "commands": [
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import scope unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_STATEMENT_INVALID": {
+      "category": "import",
+      "code": "IMPORT_STATEMENT_INVALID",
+      "commands": [
+        "add-import",
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import statement invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_STATEMENT_REQUIRED": {
+      "category": "import",
+      "code": "IMPORT_STATEMENT_REQUIRED",
+      "commands": [
+        "add-import",
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import statement required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "IMPORT_WILDCARD_UNSUPPORTED": {
+      "category": "import",
+      "code": "IMPORT_WILDCARD_UNSUPPORTED",
+      "commands": [
+        "add-import",
+        "plan",
+        "remove-import"
+      ],
+      "description": "Import wildcard unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "INTERNAL_ERROR": {
+      "category": "internal",
+      "code": "INTERNAL_ERROR",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Internal error",
+      "exit_code": 5,
+      "project_modified": true,
+      "recovery_required": false,
+      "retryable": true
+    },
+    "LEGACY_UNVERIFIABLE": {
+      "category": "security",
+      "code": "LEGACY_UNVERIFIABLE",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Legacy unverifiable",
+      "exit_code": 4,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "OPERATION_ID_INVALID": {
+      "category": "general",
+      "code": "OPERATION_ID_INVALID",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Operation id invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "OPERATION_ID_REQUIRED": {
+      "category": "general",
+      "code": "OPERATION_ID_REQUIRED",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Operation id required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "OPERATION_NOT_FOUND": {
+      "category": "general",
+      "code": "OPERATION_NOT_FOUND",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Operation not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_ANNOTATION_EXISTS": {
+      "category": "parameter",
+      "code": "PARAMETER_ANNOTATION_EXISTS",
+      "commands": [
+        "add-parameter-type",
+        "plan"
+      ],
+      "description": "Parameter annotation exists",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_ANNOTATION_INVALID": {
+      "category": "parameter",
+      "code": "PARAMETER_ANNOTATION_INVALID",
+      "commands": [
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter annotation invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_ANNOTATION_MISMATCH": {
+      "category": "parameter",
+      "code": "PARAMETER_ANNOTATION_MISMATCH",
+      "commands": [
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter annotation mismatch",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_ANNOTATION_NOT_FOUND": {
+      "category": "parameter",
+      "code": "PARAMETER_ANNOTATION_NOT_FOUND",
+      "commands": [
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter annotation not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_ANNOTATION_REQUIRED": {
+      "category": "parameter",
+      "code": "PARAMETER_ANNOTATION_REQUIRED",
+      "commands": [
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter annotation required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_KIND_UNSUPPORTED": {
+      "category": "parameter",
+      "code": "PARAMETER_KIND_UNSUPPORTED",
+      "commands": [
+        "add-parameter-type",
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter kind unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_NOT_FOUND": {
+      "category": "parameter",
+      "code": "PARAMETER_NOT_FOUND",
+      "commands": [
+        "add-parameter-type",
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARAMETER_REQUIRED": {
+      "category": "parameter",
+      "code": "PARAMETER_REQUIRED",
+      "commands": [
+        "add-parameter-type",
+        "plan",
+        "remove-parameter-type"
+      ],
+      "description": "Parameter required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PARSE_ERROR": {
+      "category": "general",
+      "code": "PARSE_ERROR",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "Parse error",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_ALREADY_ROLLED_BACK": {
+      "category": "plan",
+      "code": "PLAN_ALREADY_ROLLED_BACK",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan already rolled back",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_ARGUMENTS_INVALID": {
+      "category": "plan",
+      "code": "PLAN_ARGUMENTS_INVALID",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan arguments invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_DATABASE_FAILED": {
+      "category": "plan",
+      "code": "PLAN_DATABASE_FAILED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan database failed",
+      "exit_code": 5,
+      "project_modified": true,
+      "recovery_required": false,
+      "retryable": true
+    },
+    "PLAN_DUPLICATE_STEP_ID": {
+      "category": "plan",
+      "code": "PLAN_DUPLICATE_STEP_ID",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan duplicate step id",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_EMPTY": {
+      "category": "plan",
+      "code": "PLAN_EMPTY",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan empty",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_FILE_NOT_FOUND": {
+      "category": "plan",
+      "code": "PLAN_FILE_NOT_FOUND",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan file not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_INVALID": {
+      "category": "plan",
+      "code": "PLAN_INVALID",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_INVALID_JSON": {
+      "category": "plan",
+      "code": "PLAN_INVALID_JSON",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan invalid json",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_MANIFEST_INVALID": {
+      "category": "plan",
+      "code": "PLAN_MANIFEST_INVALID",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan manifest invalid",
+      "exit_code": 4,
+      "project_modified": false,
+      "recovery_required": true,
+      "retryable": false
+    },
+    "PLAN_NOT_FOUND": {
+      "category": "plan",
+      "code": "PLAN_NOT_FOUND",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_NO_FINAL_CHANGES": {
+      "category": "plan",
+      "code": "PLAN_NO_FINAL_CHANGES",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan no final changes",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_OPERATION_UNSUPPORTED": {
+      "category": "plan",
+      "code": "PLAN_OPERATION_UNSUPPORTED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan operation unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_PREVIEW_HASH_REQUIRED": {
+      "category": "plan",
+      "code": "PLAN_PREVIEW_HASH_REQUIRED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan preview hash required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_PREVIEW_MISMATCH": {
+      "category": "plan",
+      "code": "PLAN_PREVIEW_MISMATCH",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan preview mismatch",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_RECOVERY_CONFLICT": {
+      "category": "plan",
+      "code": "PLAN_RECOVERY_CONFLICT",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan recovery conflict",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": true,
+      "retryable": false
+    },
+    "PLAN_RECOVERY_REQUIRED": {
+      "category": "plan",
+      "code": "PLAN_RECOVERY_REQUIRED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan recovery required",
+      "exit_code": 4,
+      "project_modified": true,
+      "recovery_required": true,
+      "retryable": false
+    },
+    "PLAN_ROLLBACK_FAILED": {
+      "category": "plan",
+      "code": "PLAN_ROLLBACK_FAILED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan rollback failed",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_SCHEMA_UNSUPPORTED": {
+      "category": "plan",
+      "code": "PLAN_SCHEMA_UNSUPPORTED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan schema unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_STATE_INVALID": {
+      "category": "plan",
+      "code": "PLAN_STATE_INVALID",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan state invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_STEP_FAILED": {
+      "category": "plan",
+      "code": "PLAN_STEP_FAILED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan step failed",
+      "exit_code": 2,
+      "project_modified": true,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_TESTS_FAILED": {
+      "category": "plan",
+      "code": "PLAN_TESTS_FAILED",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan tests failed",
+      "exit_code": 3,
+      "project_modified": true,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PLAN_TOO_LARGE": {
+      "category": "plan",
+      "code": "PLAN_TOO_LARGE",
+      "commands": [
+        "plan"
+      ],
+      "description": "Plan too large",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PROJECT_MISMATCH": {
+      "category": "security",
+      "code": "PROJECT_MISMATCH",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Project mismatch",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "PROJECT_MUTATION_LOCKED": {
+      "category": "general",
+      "code": "PROJECT_MUTATION_LOCKED",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Project mutation locked",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": true
+    },
+    "RETURN_ANNOTATION_INVALID": {
+      "category": "annotation",
+      "code": "RETURN_ANNOTATION_INVALID",
+      "commands": [
+        "plan",
+        "remove-return-type"
+      ],
+      "description": "Return annotation invalid",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "RETURN_ANNOTATION_MISMATCH": {
+      "category": "annotation",
+      "code": "RETURN_ANNOTATION_MISMATCH",
+      "commands": [
+        "plan",
+        "remove-return-type"
+      ],
+      "description": "Return annotation mismatch",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "RETURN_ANNOTATION_NOT_FOUND": {
+      "category": "annotation",
+      "code": "RETURN_ANNOTATION_NOT_FOUND",
+      "commands": [
+        "plan",
+        "remove-return-type"
+      ],
+      "description": "Return annotation not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "RETURN_ANNOTATION_REQUIRED": {
+      "category": "annotation",
+      "code": "RETURN_ANNOTATION_REQUIRED",
+      "commands": [
+        "plan",
+        "remove-return-type"
+      ],
+      "description": "Return annotation required",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "ROLLBACK_ALREADY_APPLIED": {
+      "category": "rollback",
+      "code": "ROLLBACK_ALREADY_APPLIED",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Rollback already applied",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "ROLLBACK_NOT_AVAILABLE": {
+      "category": "rollback",
+      "code": "ROLLBACK_NOT_AVAILABLE",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Rollback not available",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "ROLLBACK_RECORD_NOT_ALLOWED": {
+      "category": "rollback",
+      "code": "ROLLBACK_RECORD_NOT_ALLOWED",
+      "commands": [
+        "rollback"
+      ],
+      "description": "Rollback record not allowed",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "ROLLBACK_SELECTOR_CONFLICT": {
+      "category": "rollback",
+      "code": "ROLLBACK_SELECTOR_CONFLICT",
+      "commands": [
+        "plan",
+        "rollback"
+      ],
+      "description": "Rollback selector conflict",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "TARGET_AMBIGUOUS": {
+      "category": "general",
+      "code": "TARGET_AMBIGUOUS",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "Target ambiguous",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "TARGET_NOT_FOUND": {
+      "category": "general",
+      "code": "TARGET_NOT_FOUND",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "Target not found",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "TARGET_UNSUPPORTED": {
+      "category": "general",
+      "code": "TARGET_UNSUPPORTED",
+      "commands": [
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "Target unsupported",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "TESTS_FAILED": {
+      "category": "tests",
+      "code": "TESTS_FAILED",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type"
+      ],
+      "description": "Tests failed",
+      "exit_code": 3,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "UNKNOWN_SQLITE_OPERATION": {
+      "category": "general",
+      "code": "UNKNOWN_SQLITE_OPERATION",
+      "commands": [
+        "add-decorator",
+        "add-docstring",
+        "add-import",
+        "add-parameter-type",
+        "add-return-type",
+        "plan",
+        "remove-decorator",
+        "remove-docstring",
+        "remove-import",
+        "remove-parameter-type",
+        "remove-return-type",
+        "rollback"
+      ],
+      "description": "Unknown sqlite operation",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    },
+    "UNSUPPORTED_OPERATION": {
+      "category": "general",
+      "code": "UNSUPPORTED_OPERATION",
+      "commands": [],
+      "description": "Unsupported operation",
+      "exit_code": 2,
+      "project_modified": false,
+      "recovery_required": false,
+      "retryable": false
+    }
+  },
+  "protocol_schema_version": "1.0"
+}

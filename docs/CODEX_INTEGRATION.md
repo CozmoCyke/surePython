@@ -304,6 +304,19 @@ return stable JSON for supported commands when requested
 
 The smallness is the design. It is the quarantine chamber between an AI proposal and real Python code.
 
+## Public Contract Freeze
+
+Phase 3.2 freezes the machine-readable public contract in:
+
+- `contracts/public_contract_v1.json`
+- `contracts/cli_contract_v1.json`
+- `contracts/capabilities_v1.json`
+- `contracts/error_registry_v1.json`
+- `contracts/protocol_envelope_v1.json`
+- `contracts/plan_schema_v1.json`
+
+Codex should consult `python tools/check_contracts.py` when it wants to verify that the current code still matches the frozen contract.
+
 ## Phase 3.1 Hardening
 
 When a transactional plan or a mutating command is already supported, Codex must still respect the project mutation lock and the recovery state.

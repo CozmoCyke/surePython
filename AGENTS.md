@@ -19,6 +19,9 @@ Supported write operations currently also include add-decorator.
 Supported write operations currently also include remove-parameter-type.
 Supported write operations currently also include remove-decorator.
 
+The public contract snapshots live under `contracts/` and are validated by `tools/check_contracts.py`.
+Before changing any public CLI surface, error code, JSON envelope, plan schema, or SQLite schema, compare the code to the frozen contract.
+
 When no supported operation matches:
 
 1. State that the change is outside the current capability set.

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://surepython.local/schemas/plan-1.0.schema.json",
+  "title": "SurePython transactional plan v1.0",
+  "type": "object",
+  "required": [
+    "plan_schema_version",
+    "steps"
+  ],
+  "properties": {
+    "plan_schema_version": {
+      "const": "1.0"
+    },
+    "name": {
+      "type": ["string", "null"]
+    },
+    "description": {
+      "type": ["string", "null"]
+    },
+    "client_plan_id": {
+      "type": ["string", "null"]
+    },
+    "metadata": {
+      "type": ["object", "null"]
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "operation",
+          "file",
+          "arguments"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}

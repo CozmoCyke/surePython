@@ -103,6 +103,18 @@ This phase is still a direct-edit fallback for SurePython's own plumbing, but th
 
 Do not reduce the comparison to speed alone.
 
+## Phase 3.2 Contract Freeze
+
+Phase 3.2 freezes the public contract and its snapshots instead of adding new capabilities.
+
+- `contracts/public_contract_v1.json` is the summary contract manifest
+- `contracts/cli_contract_v1.json` captures the public argparse tree
+- `contracts/capabilities_v1.json` captures the machine-readable capability registry
+- `contracts/error_registry_v1.json` captures the public error registry
+- `tools/check_contracts.py` validates the frozen contract against the current code
+
+This phase is a contract-verification phase, so direct edits are correct only for documentation, snapshots, and validation glue that do not expand the execution surface.
+
 ## Boundary
 
 SurePython is a quarantine layer, not a general Python assistant. It is valuable precisely because it refuses when the proof is missing.

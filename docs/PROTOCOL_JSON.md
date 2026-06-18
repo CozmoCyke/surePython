@@ -1,6 +1,7 @@
 # SurePython JSON Protocol
 
-This document defines the machine-readable contract used by SurePython phase 2.8.
+This document defines the machine-readable contract used by SurePython.
+Phase 3.2 freezes the public contract and validates it through `contracts/public_contract_v1.json` and `tools/check_contracts.py`.
 
 ## Versioning
 

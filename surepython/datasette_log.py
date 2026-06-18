@@ -8,6 +8,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import __version__ as SUREPYTHON_VERSION
 
 STATE_FILE_ENV = "SUREPYTHON_STATE_FILE"
 
@@ -109,6 +110,13 @@ class PlanFileRecord:
     after_bytes: bytes
     restored: bool
     id: int | None = None
+
+
+@dataclass(frozen=True)
+class SchemaMetadataRecord:
+    schema_version: str
+    created_by_version: str
+    last_migrated_by_version: str
 
 
 def now_utc_iso() -> str:
@@ -346,7 +354,30 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS surepython_schema_metadata (
+            schema_version TEXT NOT NULL,
+            created_by_version TEXT NOT NULL,
+            last_migrated_by_version TEXT NOT NULL
+        )
+        """
+    )
     connection.commit()
+
+    metadata_count = connection.execute("SELECT COUNT(*) FROM surepython_schema_metadata").fetchone()[0]
+    if metadata_count == 0:
+        connection.execute(
+            """
+            INSERT INTO surepython_schema_metadata (
+                schema_version,
+                created_by_version,
+                last_migrated_by_version
+            ) VALUES (?, ?, ?)
+            """,
+            ("1.0", SUREPYTHON_VERSION, SUREPYTHON_VERSION),
+        )
+        connection.commit()
 
     connection.execute(
         """

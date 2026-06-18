@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://surepython.local/schemas/capabilities-1.0.schema.json",
+  "title": "SurePython capabilities v1.0",
+  "type": "object",
+  "required": [
+    "protocol_schema_version",
+    "capabilities_schema_version",
+    "operations",
+    "commands"
+  ],
+  "properties": {
+    "protocol_schema_version": {
+      "const": "1.0"
+    },
+    "capabilities_schema_version": {
+      "const": "1.0"
+    },
+    "operations": {
+      "type": "array"
+    },
+    "commands": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

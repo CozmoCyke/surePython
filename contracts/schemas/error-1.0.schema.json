@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://surepython.local/schemas/error-1.0.schema.json",
+  "title": "SurePython error object v1.0",
+  "type": "object",
+  "required": [
+    "code",
+    "message",
+    "details"
+  ],
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,99 @@
+{
+  "contract_version": "1.0",
+  "manifest_allowed_statuses": [
+    "complete",
+    "failed",
+    "logging",
+    "preparing",
+    "recovered",
+    "recovery_required",
+    "restoring",
+    "testing",
+    "writing"
+  ],
+  "manifest_initial_statuses": [
+    "preparing",
+    "restoring"
+  ],
+  "manifest_transitions": {
+    "None": [
+      "preparing",
+      "restoring"
+    ],
+    "complete": [],
+    "failed": [
+      "recovered",
+      "recovery_required"
+    ],
+    "logging": [
+      "complete",
+      "failed",
+      "recovered",
+      "recovery_required",
+      "restoring"
+    ],
+    "preparing": [
+      "failed",
+      "recovered",
+      "recovery_required",
+      "writing"
+    ],
+    "recovered": [],
+    "recovery_required": [
+      "failed",
+      "recovered"
+    ],
+    "restoring": [
+      "failed",
+      "logging",
+      "recovered",
+      "recovery_required"
+    ],
+    "testing": [
+      "failed",
+      "logging",
+      "recovered",
+      "recovery_required",
+      "restoring"
+    ],
+    "writing": [
+      "failed",
+      "logging",
+      "recovered",
+      "recovery_required",
+      "restoring",
+      "testing"
+    ]
+  },
+  "max_steps": 50,
+  "optional_root_keys": [
+    "name",
+    "description",
+    "client_plan_id",
+    "metadata"
+  ],
+  "plan_schema_version": "1.0",
+  "required_root_keys": [
+    "plan_schema_version",
+    "steps"
+  ],
+  "required_step_keys": [
+    "id",
+    "operation",
+    "file",
+    "arguments"
+  ],
+  "supported_operations": [
+    "add-decorator",
+    "add-docstring",
+    "add-import",
+    "add-parameter-type",
+    "add-return-type",
+    "remove-decorator",
+    "remove-docstring",
+    "remove-import",
+    "remove-parameter-type",
+    "remove-return-type"
+  ],
+  "transaction_manifest_schema_version": "1.0"
+}

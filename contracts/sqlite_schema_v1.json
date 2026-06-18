@@ -1,0 +1,628 @@
+{
+  "contract_version": "1.0",
+  "schema_version": "1.0",
+  "tables": {
+    "surepython_operations": {
+      "columns": [
+        {
+          "default": null,
+          "name": "id",
+          "notnull": false,
+          "primary_key": true,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "created_at",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "project_path",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "file_path",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "operation",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "symbol",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "import_statement",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "import_binding",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "expected_import_statement",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "removed_import_statement",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "removed_import_binding",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "import_match_count",
+          "notnull": false,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "decorator_expression",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "decorator_position",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "decorator_target_kind",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "expected_decorator_expression",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "expected_decorator_position",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "removed_decorator_expression",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "removed_decorator_position",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "parameter",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "expected_return_annotation",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "return_annotation",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "before_sha256",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "after_sha256",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "git_diff",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "pytest_command",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "pytest_exit_code",
+          "notnull": false,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "pytest_status",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "status",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "message",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "source_operation_id",
+          "notnull": false,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "target_kind",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "parameter_kind",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "expected_parameter_annotation",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "parameter_annotation",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "expected_docstring_text",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "removed_docstring_text",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "removed_docstring_source",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "docstring_target_kind",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "docstring_replacement_statement",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "before_source_b64",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        }
+      ]
+    },
+    "surepython_plan_files": {
+      "columns": [
+        {
+          "default": null,
+          "name": "id",
+          "notnull": false,
+          "primary_key": true,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "plan_id",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "file",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "before_sha256",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "after_sha256",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "before_bytes",
+          "notnull": true,
+          "primary_key": false,
+          "type": "BLOB"
+        },
+        {
+          "default": null,
+          "name": "after_bytes",
+          "notnull": true,
+          "primary_key": false,
+          "type": "BLOB"
+        },
+        {
+          "default": "0",
+          "name": "restored",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        }
+      ]
+    },
+    "surepython_plan_steps": {
+      "columns": [
+        {
+          "default": null,
+          "name": "id",
+          "notnull": false,
+          "primary_key": true,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "plan_id",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "step_index",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "step_id",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "operation",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "file",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "arguments_json",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "status",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "result_json",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "error_code",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "before_sha256",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "after_sha256",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        }
+      ]
+    },
+    "surepython_plans": {
+      "columns": [
+        {
+          "default": null,
+          "name": "id",
+          "notnull": false,
+          "primary_key": true,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "created_at",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "project_path",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "plan_uuid",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "client_plan_id",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "name",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "description",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "plan_schema_version",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "plan_path",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "metadata_json",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "preview_hash",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "status",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "step_count",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "file_count",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "tests_requested",
+          "notnull": true,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "tests_passed",
+          "notnull": false,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "started_at",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "completed_at",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "error_code",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "rollback_of_plan_id",
+          "notnull": false,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "source_plan_id",
+          "notnull": false,
+          "primary_key": false,
+          "type": "INTEGER"
+        },
+        {
+          "default": null,
+          "name": "message",
+          "notnull": false,
+          "primary_key": false,
+          "type": "TEXT"
+        }
+      ]
+    },
+    "surepython_schema_metadata": {
+      "columns": [
+        {
+          "default": null,
+          "name": "schema_version",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "created_by_version",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        },
+        {
+          "default": null,
+          "name": "last_migrated_by_version",
+          "notnull": true,
+          "primary_key": false,
+          "type": "TEXT"
+        }
+      ]
+    }
+  }
+}

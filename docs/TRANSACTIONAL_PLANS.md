@@ -2,6 +2,8 @@
 
 SurePython phase 3.0 adds a grouped `plan` command for multi-step changes that must be previewed, applied, logged, rolled back, and recovered together.
 
+The frozen plan contract is captured in `contracts/plan_schema_v1.json` and validated together with the protocol and capability snapshots under `contracts/`.
+
 ## Supported Commands
 
 ```powershell
