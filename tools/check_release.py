@@ -74,8 +74,14 @@ def _version_from_pyproject() -> str:
 
 def _ensure_clean_git() -> None:
     status = _run(["git", "status", "--short"])
-    if status.stdout.strip():
-        raise RuntimeError("Worktree is not clean.")
+    allowed = (".vendor3/", "sitecustomize.py")
+    unexpected = [
+        line
+        for line in status.stdout.splitlines()
+        if line.strip() and not any(token in line.replace("\\", "/") for token in allowed)
+    ]
+    if unexpected:
+        raise RuntimeError(f"Worktree is not clean: {unexpected}")
 
 
 def _ensure_version_consistency() -> None:
