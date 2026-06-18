@@ -18,6 +18,15 @@ Current result:
 - build and twine checks pass
 - packaging metadata tests pass
 - release smoke harness passes
-- the release validator itself is ready for a clean-tree rerun before an RC tag
+- the release validator passed on the clean source tree with offline bootstrap
 
-The final RC decision still depends on a clean-tree run of `tools/check_release.py` after this phase is committed.
+The final RC decision now only depends on the usual post-commit integration step and the planned RC review.
+
+## Final Validation
+
+- `python tools/check_release.py` passed on the clean source tree
+- result payload:
+  - `ok: true`
+  - `version: 0.17.0`
+  - `wheel: surepython-0.17.0-py3-none-any.whl`
+  - `sdist: surepython-0.17.0.tar.gz`
