@@ -1,0 +1,8 @@
+include README.md
+include AGENTS.md
+include pyproject.toml
+recursive-include docs *.md
+recursive-include contracts *.json *.md
+recursive-include surepython/contracts *.json *.md
+recursive-include tests *.py
+recursive-include tools *.py

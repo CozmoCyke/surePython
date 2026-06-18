@@ -475,6 +475,29 @@ This repository may contain local bootstrap infrastructure such as `.vendor3` an
 
 See [Windows troubleshooting](docs/WINDOWS_TROUBLESHOOTING.md) before diagnosing rollback or pytest failures as SurePython defects.
 
+## Packaging And Distribution
+
+Phase 3.3 prepares SurePython for clean distribution on Windows, Linux, and macOS.
+
+The packaging contract now includes:
+
+- wheel and sdist builds from a clean tree
+- clean installs into fresh virtual environments
+- uninstall verification
+- embedded package resources for the frozen contracts
+- a release validator script at `tools/check_release.py`
+- packaging metadata validation in `tests/test_packaging_metadata.py`
+
+The release process is documented in:
+
+- `docs/INSTALLATION.md`
+- `docs/BUILDING.md`
+- `docs/SUPPORTED_PLATFORMS.md`
+- `docs/RELEASE_PROCESS.md`
+- `docs/DISTRIBUTION_SECURITY.md`
+
+SurePython remains a narrow safety layer. Packaging does not expand the supported edit set; it only proves that the tool can be built, installed, validated, and removed cleanly.
+
 ## Roadmap Boundaries
 
 SurePython does not yet provide:

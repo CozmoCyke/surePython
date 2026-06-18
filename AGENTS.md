@@ -18,9 +18,12 @@ Supported write operations currently include add-docstring, add-return-type, rem
 Supported write operations currently also include add-decorator.
 Supported write operations currently also include remove-parameter-type.
 Supported write operations currently also include remove-decorator.
+Supported write operations currently also include remove-docstring.
 
 The public contract snapshots live under `contracts/` and are validated by `tools/check_contracts.py`.
 Before changing any public CLI surface, error code, JSON envelope, plan schema, or SQLite schema, compare the code to the frozen contract.
+
+For release work, keep packaging changes additive and validate artifacts with `tools/check_release.py` before recommending a public tag.
 
 When no supported operation matches:
 

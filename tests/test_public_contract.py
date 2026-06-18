@@ -158,7 +158,7 @@ def test_sqlite_schema_includes_additive_metadata_table(tmp_path: Path) -> None:
         metadata = connection.execute(
             "SELECT schema_version, created_by_version, last_migrated_by_version FROM surepython_schema_metadata"
         ).fetchone()
-        assert metadata == ("1.0", "0.1.0", "0.1.0")
+        assert metadata == ("1.0", "0.17.0", "0.17.0")
     finally:
         connection.close()
 

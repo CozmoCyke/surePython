@@ -1,0 +1,1580 @@
+{
+  "contract_version": "1.0",
+  "description": "SurePython v0.1",
+  "prog": "surepython",
+  "tree": {
+    "actions": [
+      {
+        "choices": null,
+        "default": "==SUPPRESS==",
+        "dest": "help",
+        "kind": "_HelpAction",
+        "nargs": 0,
+        "option_strings": [
+          "-h",
+          "--help"
+        ],
+        "required": false
+      },
+      {
+        "choices": [
+          "add-decorator",
+          "add-docstring",
+          "add-import",
+          "add-parameter-type",
+          "add-return-type",
+          "capabilities",
+          "diff",
+          "log",
+          "plan",
+          "remove-decorator",
+          "remove-docstring",
+          "remove-import",
+          "remove-parameter-type",
+          "remove-return-type",
+          "rollback",
+          "scan"
+        ],
+        "dest": "command",
+        "kind": "subparsers",
+        "parsers": {
+          "add-decorator": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "symbol",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--symbol"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "decorator",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--decorator"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "position",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--position"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython add-decorator"
+          },
+          "add-docstring": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "function",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--function"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython add-docstring"
+          },
+          "add-import": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "statement",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--statement"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython add-import"
+          },
+          "add-parameter-type": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "function",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--function"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "parameter",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--parameter"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "annotation",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--annotation"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython add-parameter-type"
+          },
+          "add-return-type": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "function",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--function"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "annotation",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--annotation"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython add-return-type"
+          },
+          "capabilities": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython capabilities"
+          },
+          "diff": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython diff"
+          },
+          "log": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": true
+              }
+            ],
+            "description": null,
+            "prog": "surepython log"
+          },
+          "plan": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "apply",
+                  "preview",
+                  "recover",
+                  "rollback"
+                ],
+                "dest": "plan_command",
+                "kind": "subparsers",
+                "parsers": {
+                  "apply": {
+                    "actions": [
+                      {
+                        "choices": null,
+                        "default": "==SUPPRESS==",
+                        "dest": "help",
+                        "kind": "_HelpAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "-h",
+                          "--help"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": null,
+                        "dest": "plan_path",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [],
+                        "required": true
+                      },
+                      {
+                        "choices": null,
+                        "default": null,
+                        "dest": "expect_preview_hash",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--expect-preview-hash"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": false,
+                        "dest": "test",
+                        "kind": "_StoreTrueAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "--test"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": null,
+                        "dest": "db",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--db"
+                        ],
+                        "required": true
+                      },
+                      {
+                        "choices": [
+                          "json",
+                          "text"
+                        ],
+                        "default": "text",
+                        "dest": "format",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--format"
+                        ],
+                        "required": false
+                      }
+                    ],
+                    "description": null,
+                    "prog": "surepython plan apply"
+                  },
+                  "preview": {
+                    "actions": [
+                      {
+                        "choices": null,
+                        "default": "==SUPPRESS==",
+                        "dest": "help",
+                        "kind": "_HelpAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "-h",
+                          "--help"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": null,
+                        "dest": "plan_path",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [],
+                        "required": true
+                      },
+                      {
+                        "choices": [
+                          "json",
+                          "text"
+                        ],
+                        "default": "text",
+                        "dest": "format",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--format"
+                        ],
+                        "required": false
+                      }
+                    ],
+                    "description": null,
+                    "prog": "surepython plan preview"
+                  },
+                  "recover": {
+                    "actions": [
+                      {
+                        "choices": null,
+                        "default": "==SUPPRESS==",
+                        "dest": "help",
+                        "kind": "_HelpAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "-h",
+                          "--help"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": [
+                          "json",
+                          "text"
+                        ],
+                        "default": "text",
+                        "dest": "format",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--format"
+                        ],
+                        "required": false
+                      }
+                    ],
+                    "description": null,
+                    "prog": "surepython plan recover"
+                  },
+                  "rollback": {
+                    "actions": [
+                      {
+                        "choices": null,
+                        "default": "==SUPPRESS==",
+                        "dest": "help",
+                        "kind": "_HelpAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "-h",
+                          "--help"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": false,
+                        "dest": "last",
+                        "kind": "_StoreTrueAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "--last"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": null,
+                        "dest": "id",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--id"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": null,
+                        "default": null,
+                        "dest": "db",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--db"
+                        ],
+                        "required": true
+                      },
+                      {
+                        "choices": null,
+                        "default": false,
+                        "dest": "dry_run",
+                        "kind": "_StoreTrueAction",
+                        "nargs": 0,
+                        "option_strings": [
+                          "--dry-run"
+                        ],
+                        "required": false
+                      },
+                      {
+                        "choices": [
+                          "json",
+                          "text"
+                        ],
+                        "default": "text",
+                        "dest": "format",
+                        "kind": "_StoreAction",
+                        "nargs": null,
+                        "option_strings": [
+                          "--format"
+                        ],
+                        "required": false
+                      }
+                    ],
+                    "description": null,
+                    "prog": "surepython plan rollback"
+                  }
+                },
+                "required": true
+              }
+            ],
+            "description": null,
+            "prog": "surepython plan"
+          },
+          "remove-decorator": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "symbol",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--symbol"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "expect_decorator",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--expect-decorator"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "expect_position",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--expect-position"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython remove-decorator"
+          },
+          "remove-docstring": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "symbol",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--symbol"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "expect_docstring",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--expect-docstring"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython remove-docstring"
+          },
+          "remove-import": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "expect_statement",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--expect-statement"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython remove-import"
+          },
+          "remove-parameter-type": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "function",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--function"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "parameter",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--parameter"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "expect_annotation",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--expect-annotation"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython remove-parameter-type"
+          },
+          "remove-return-type": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "file_path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "function",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--function"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "expect_annotation",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--expect-annotation"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "test",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--test"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "test_command",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--test-command"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython remove-return-type"
+          },
+          "rollback": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "last",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--last"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "id",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--id"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "db",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--db"
+                ],
+                "required": true
+              },
+              {
+                "choices": null,
+                "default": false,
+                "dest": "dry_run",
+                "kind": "_StoreTrueAction",
+                "nargs": 0,
+                "option_strings": [
+                  "--dry-run"
+                ],
+                "required": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython rollback"
+          },
+          "scan": {
+            "actions": [
+              {
+                "choices": null,
+                "default": "==SUPPRESS==",
+                "dest": "help",
+                "kind": "_HelpAction",
+                "nargs": 0,
+                "option_strings": [
+                  "-h",
+                  "--help"
+                ],
+                "required": false
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "path",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [],
+                "required": true
+              },
+              {
+                "choices": [
+                  "csv",
+                  "json",
+                  "text"
+                ],
+                "default": "text",
+                "dest": "format",
+                "kind": "_StoreAction",
+                "nargs": null,
+                "option_strings": [
+                  "--format"
+                ],
+                "required": false
+              }
+            ],
+            "description": null,
+            "prog": "surepython scan"
+          }
+        },
+        "required": true
+      }
+    ],
+    "description": "SurePython v0.1",
+    "prog": "surepython"
+  }
+}

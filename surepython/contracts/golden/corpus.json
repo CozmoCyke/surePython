@@ -1,0 +1,29 @@
+{
+  "contract_version": "1.0",
+  "scenarios": [
+    {
+      "name": "capabilities-json",
+      "source": "contracts/capabilities_v1.json"
+    },
+    {
+      "name": "cli-tree",
+      "source": "contracts/cli_contract_v1.json"
+    },
+    {
+      "name": "protocol-envelope",
+      "source": "contracts/protocol_envelope_v1.json"
+    },
+    {
+      "name": "plan-schema",
+      "source": "contracts/plan_schema_v1.json"
+    },
+    {
+      "name": "error-registry",
+      "source": "contracts/error_registry_v1.json"
+    },
+    {
+      "name": "preview-hash-vectors",
+      "source": "contracts/fixtures/preview_hash_vectors.json"
+    }
+  ]
+}

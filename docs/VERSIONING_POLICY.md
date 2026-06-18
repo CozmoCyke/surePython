@@ -24,3 +24,8 @@ It is not a promise that raw SQL is a public API.
 A package release may advance without changing the contract versions.
 A contract version change means the machine-readable shape has changed and must be tested.
 
+## Release Artifacts
+
+The package version also identifies the wheel and sdist produced from the repository root.
+Phase 3.3 requires those artifacts to install cleanly into fresh environments and to preserve the frozen public contracts.
+

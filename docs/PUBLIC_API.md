@@ -35,8 +35,14 @@ SurePython exposes a narrow public surface.
 - `contracts/sqlite_schema_v1.json`
 - `contracts/fixtures/preview_hash_vectors.json`
 
+## Packaging And Release Helpers
+
+- `tools/check_release.py` validates the built distribution artifacts and clean-install behavior.
+- `python -m build` and `python -m twine check` are release-time checks rather than runtime API surface.
+
 ## API Boundary
 
 The stable public API is the CLI plus its JSON contract.
 Python modules are internal implementation details unless a document explicitly says otherwise.
+Packaging helpers document release validation, but they do not expand the runtime public API.
 

@@ -1,0 +1,55 @@
+{
+  "contract_version": "1.0",
+  "vectors": [
+    {
+      "expected_preview_hash": "sha256:1dfb7c38cafa611c50c3822eef5b87d4a8820f478dc564262cfeaa75bfe88998",
+      "file_count": 1,
+      "initial_source": "def parse(source):\n    return source\n",
+      "name": "vector-one",
+      "plan": {
+        "plan_schema_version": "1.0",
+        "steps": [
+          {
+            "arguments": {
+              "statement": "from pathlib import Path"
+            },
+            "file": "service.py",
+            "id": "add-import",
+            "operation": "add-import"
+          },
+          {
+            "arguments": {
+              "annotation": "str",
+              "symbol": "parse"
+            },
+            "file": "service.py",
+            "id": "add-return-type",
+            "operation": "add-return-type"
+          }
+        ]
+      },
+      "step_count": 2
+    },
+    {
+      "expected_preview_hash": "sha256:d4549d82ed35ad43f566a6064f2873b5ce674e899d24730b12f11928ec8232a6",
+      "file_count": 1,
+      "initial_source": "def parse(source):\n    return source\n",
+      "name": "vector-two",
+      "plan": {
+        "plan_schema_version": "1.0",
+        "steps": [
+          {
+            "arguments": {
+              "docstring": "Parse a source.",
+              "symbol": "parse"
+            },
+            "file": "service.py",
+            "id": "add-docstring",
+            "operation": "add-docstring"
+          }
+        ]
+      },
+      "step_count": 1
+    }
+  ]
+}

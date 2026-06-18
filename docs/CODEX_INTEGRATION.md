@@ -330,3 +330,15 @@ Practical rules:
 - do not weaken the manifest checksum or remove the lock to get a "green" result
 
 This keeps the agent contract honest under concurrent or interrupted execution.
+
+## Packaging And Release Work
+
+For release preparation, Codex should also:
+
+1. Build the wheel and sdist from a clean checkout.
+2. Run `tools/check_release.py`.
+3. Install the artifacts into fresh virtual environments.
+4. Confirm uninstall removes the importable package.
+5. Record the result in the phase 3.3 reports before proposing a tag.
+
+Packaging work does not change the supported edit set. It only proves that the already-supported CLI can be shipped safely.

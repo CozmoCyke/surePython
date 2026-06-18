@@ -1,0 +1,56 @@
+{
+  "allowed_statuses": [
+    "preview",
+    "applied",
+    "tested",
+    "failed",
+    "rolled_back",
+    "recovered",
+    "noop",
+    "refused"
+  ],
+  "capabilities_schema_version": "1.0",
+  "commands": [
+    "capabilities",
+    "scan",
+    "diff",
+    "log",
+    "rollback",
+    "plan",
+    "add-docstring",
+    "remove-docstring",
+    "add-return-type",
+    "remove-return-type",
+    "add-parameter-type",
+    "remove-parameter-type",
+    "add-import",
+    "remove-import",
+    "add-decorator",
+    "remove-decorator"
+  ],
+  "contract_version": "1.0",
+  "error_shape": {
+    "required_fields": [
+      "code",
+      "message",
+      "details"
+    ]
+  },
+  "exit_codes": {
+    "internal": 5,
+    "refused_or_usage": 2,
+    "security_or_hash_mismatch": 4,
+    "success": 0,
+    "tests_failed": 3
+  },
+  "protocol_schema_version": "1.0",
+  "required_envelope_fields": [
+    "protocol_schema_version",
+    "command",
+    "ok",
+    "status",
+    "error",
+    "result",
+    "meta"
+  ]
+}

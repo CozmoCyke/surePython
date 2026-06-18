@@ -238,3 +238,15 @@ SurePython is not a general Python development engine.
 
 It is a narrow, auditable execution tool for supported micro-changes.
 ````
+
+## Packaging And Release Work
+
+For packaging or release tasks, validate artifacts from a clean tree before recommending a tag:
+
+```powershell
+python -m build
+python -m twine check dist\*
+python tools\check_release.py
+```
+
+Keep wheel and sdist contents additive and avoid shipping tests, caches, or repository-only workflow files.

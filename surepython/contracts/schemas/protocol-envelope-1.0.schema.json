@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://surepython.local/schemas/protocol-envelope-1.0.schema.json",
+  "title": "SurePython protocol envelope v1.0",
+  "type": "object",
+  "required": [
+    "protocol_schema_version",
+    "command",
+    "ok",
+    "status",
+    "error",
+    "result",
+    "meta"
+  ],
+  "properties": {
+    "protocol_schema_version": {
+      "const": "1.0"
+    },
+    "command": {
+      "type": "string"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "preview",
+        "applied",
+        "tested",
+        "failed",
+        "rolled_back",
+        "recovered",
+        "noop",
+        "refused"
+      ]
+    },
+    "error": {
+      "type": ["object", "null"]
+    },
+    "result": {
+      "type": ["object", "null"]
+    },
+    "meta": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

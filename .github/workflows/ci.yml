@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package
+        run: python -m pip install -e .[dev]
+      - name: Run tests
+        run: python -m pytest --basetemp .tmp/pytest_ci -q
+      - name: Validate contracts
+        run: python tools/check_contracts.py
+      - name: Validate release artifacts
+        run: python tools/check_release.py

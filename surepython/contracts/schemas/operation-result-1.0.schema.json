@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://surepython.local/schemas/operation-result-1.0.schema.json",
+  "title": "SurePython operation result v1.0",
+  "type": "object",
+  "required": [
+    "protocol_schema_version",
+    "command",
+    "ok",
+    "status",
+    "error",
+    "result",
+    "meta"
+  ],
+  "properties": {
+    "protocol_schema_version": {
+      "const": "1.0"
+    },
+    "command": {
+      "type": "string"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string"
+    },
+    "error": {
+      "type": ["object", "null"]
+    },
+    "result": {
+      "type": ["object", "null"]
+    },
+    "meta": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

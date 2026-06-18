@@ -515,3 +515,18 @@ En pratique:
 - des points d'injection de panne ne servent qu'aux smokes et aux tests de récupération
 
 Le tutoriel reste valable, mais les smokes de la phase 3.1 servent à prouver le durcissement d'exécution, pas à élargir le périmètre fonctionnel.
+
+## 12. Préparer une distribution propre
+
+La phase 3.3 ajoute le packaging et la validation de distribution :
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e .[dev]
+.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe -m twine check dist\*
+.\.venv\Scripts\python.exe tools\check_release.py
+```
+
+Cette séquence vérifie qu'un wheel et un sdist peuvent être construits, installés dans des environnements neufs, puis désinstallés sans laisser le dépôt sale.
+
+Les plateformes validées et les contraintes d'installation sont détaillées dans `SUPPORTED_PLATFORMS.md` et `INSTALLATION.md`.

@@ -173,3 +173,21 @@ python tools/check_contracts.py
 ```
 
 If it fails, the code, snapshots, or normative docs have drifted and need to be reconciled before release.
+
+## Packaging Validation On Windows
+
+Phase 3.3 adds a release validator that builds the wheel and sdist, installs them into fresh virtual environments, and checks that uninstall removes the importable package.
+
+Run it from a clean tree:
+
+```powershell
+.\.venv\Scripts\python.exe tools\check_release.py
+```
+
+If the validator fails because `build` or `twine` is missing, install the dev extras into the active `.venv` and rerun it:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e .[dev]
+```
+
+The validator should never be "fixed" by hiding packaging files or weakening the artifact checks.

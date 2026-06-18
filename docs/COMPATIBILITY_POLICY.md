@@ -37,3 +37,9 @@ If a change cannot be represented as additive and backward compatible, it needs:
 3. tests
 4. a breaking-change note
 
+## Distribution Compatibility
+
+Packaging compatibility is measured by clean installation, importability, uninstallability, and the absence of unintended repository-only files in the wheel or sdist.
+
+Phase 3.3 also treats the supported Python version range, platform matrix, and build toolchain as compatibility commitments that must be validated before a release tag.
+
