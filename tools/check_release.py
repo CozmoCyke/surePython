@@ -187,7 +187,9 @@ def _inspect_sdist(sdist_path: Path) -> None:
 
 
 def _venv_python(venv_dir: Path) -> Path:
-    return venv_dir / "Scripts" / "python.exe"
+    if os.name == "nt":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
 
 
 def _create_venv(venv_dir: Path) -> Path:

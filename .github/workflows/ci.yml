@@ -7,6 +7,7 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -19,8 +20,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install package
         run: python -m pip install -e .[dev]
+      - name: Dump environment
+        run: python -c "import os, platform, sys; print(sys.version); print(platform.platform()); print(os.getcwd())"
       - name: Run tests
-        run: python -m pytest --basetemp .tmp/pytest_ci -q
+        run: python -m pytest --basetemp .tmp/pytest_ci -x -vv --tb=long --durations=20
       - name: Validate contracts
         run: python tools/check_contracts.py
       - name: Validate release artifacts
