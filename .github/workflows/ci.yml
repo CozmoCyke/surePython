@@ -25,7 +25,7 @@ jobs:
       - name: Prepare test diagnostics
         run: python -c "from pathlib import Path; Path('.tmp/ci-results').mkdir(parents=True, exist_ok=True)"
       - name: Run tests
-        run: python -m pytest --basetemp .tmp/pytest_ci --junitxml .tmp/ci-results/junit.xml -x -vv --tb=long --durations=20
+        run: python tools/pytest_ci.py --basetemp .tmp/pytest_ci --junitxml .tmp/ci-results/junit.xml -x -vv --tb=long --durations=20
       - name: Validate contracts
         run: python tools/check_contracts.py
       - name: Validate release artifacts

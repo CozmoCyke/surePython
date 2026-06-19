@@ -427,6 +427,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = check_release(Path(args.dist_dir))
     except Exception as exc:  # pragma: no cover - CLI wrapper
+        message = str(exc).replace("\n", " | ")
+        print(f"::error title=SurePython release validation failed::{message}", file=sys.stderr)
         print(f"RELEASE_CHECK_FAILED: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True))
