@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import uuid
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable
 
 from .codemods import (
@@ -290,7 +290,11 @@ def _validate_plan_structure(data: dict[str, Any]) -> PlanSpec:
             raise GitError("Plan step operation is not supported", code="PLAN_OPERATION_UNSUPPORTED")
         if not isinstance(file_name, str) or not file_name.strip():
             raise GitError("Plan step file is required", code="PLAN_INVALID")
-        if Path(file_name).is_absolute() or ".." in Path(file_name).parts:
+        if (
+            PurePosixPath(file_name).is_absolute()
+            or PureWindowsPath(file_name).is_absolute()
+            or ".." in Path(file_name).parts
+        ):
             raise GitError("Plan step file path must be relative to the project", code="PLAN_ARGUMENTS_INVALID")
         if not isinstance(arguments, dict):
             raise GitError("Plan step arguments must be a JSON object", code="PLAN_ARGUMENTS_INVALID")
