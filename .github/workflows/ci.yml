@@ -29,7 +29,7 @@ jobs:
       - name: Validate contracts
         run: python tools/check_contracts.py
       - name: Validate release artifacts
-        run: python tools/check_release.py
+        run: python tools/release_ci.py
       - name: Upload pytest diagnostics
         if: always()
         uses: actions/upload-artifact@v4
