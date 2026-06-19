@@ -38,6 +38,8 @@
 - Fixed the packaging contract by adding the build-time tools to the editable-install dev extras:
   - `setuptools>=68`
   - `wheel`
+- Reproduced the next packaging failure in a clean venv and found the smoke install was dropping runtime dependencies with `--no-deps`, which made installed `surepython` unable to import `libcst`.
+- Updated the release validator to install the built wheel and sdist with their dependencies so the smoke reflects a real clean install.
 
 ## Local Validation
 
@@ -57,6 +59,7 @@
 - Pytest diagnostics are now emitted as a downloadable artifact in CI.
 - The public-contract hash mismatch is now normalized across OS by forcing CRLF in the temporary contract project.
 - The packaging backend dependency issue has been addressed in `pyproject.toml`.
+- The release smoke now installs wheel/sdist dependencies instead of skipping them, so `surepython` imports work in a truly clean venv.
 - The repository remains on the feature branch and `main` is unchanged.
 - Status before the next remote run: `READY_FOR_REMOTE_CI_RETRY`
 

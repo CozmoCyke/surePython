@@ -268,12 +268,9 @@ def _smoke_installed_package(python: Path, *, label: str) -> None:
 
 def _install_artifact_in_venv(artifact: Path, venv_python: Path) -> None:
     if artifact.name.endswith(".tar.gz"):
-        _run(
-            [str(venv_python), "-m", "pip", "install", "--no-build-isolation", "--no-deps", str(artifact)],
-            env={"PYTHONPATH": str(CURRENT_SITE_PACKAGES), "PIP_NO_CACHE_DIR": "1"},
-        )
+        _run([str(venv_python), "-m", "pip", "install", "--no-build-isolation", str(artifact)], env={"PYTHONPATH": str(CURRENT_SITE_PACKAGES), "PIP_NO_CACHE_DIR": "1"})
     else:
-        _run([str(venv_python), "-m", "pip", "install", "--no-deps", str(artifact)])
+        _run([str(venv_python), "-m", "pip", "install", str(artifact)])
 
 
 def _smoke_run(venv_python: Path, project: Path) -> dict[str, Any]:
