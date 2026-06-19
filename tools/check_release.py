@@ -12,13 +12,11 @@ import venv
 import zipfile
 from pathlib import Path
 from typing import Any
-import sysconfig
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist"
 BOOTSTRAP_DIR = ROOT / ".vendor3"
-CURRENT_SITE_PACKAGES = Path(sysconfig.get_paths()["purelib"])
 FORBIDDEN_PATTERNS = (
     ".git/",
     ".tmp/",
@@ -268,7 +266,7 @@ def _smoke_installed_package(python: Path, *, label: str) -> None:
 
 def _install_artifact_in_venv(artifact: Path, venv_python: Path) -> None:
     if artifact.name.endswith(".tar.gz"):
-        _run([str(venv_python), "-m", "pip", "install", "--no-build-isolation", str(artifact)], env={"PYTHONPATH": str(CURRENT_SITE_PACKAGES), "PIP_NO_CACHE_DIR": "1"})
+        _run([str(venv_python), "-m", "pip", "install", str(artifact)])
     else:
         _run([str(venv_python), "-m", "pip", "install", str(artifact)])
 

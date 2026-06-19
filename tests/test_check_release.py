@@ -35,11 +35,7 @@ def test_install_artifact_in_venv_installs_dependencies(monkeypatch) -> None:
         "-m",
         "pip",
         "install",
-        "--no-build-isolation",
         str(sdist),
     ]
     assert calls[0][1] is None
-    assert calls[1][1] == {
-        "PYTHONPATH": str(check_release.CURRENT_SITE_PACKAGES),
-        "PIP_NO_CACHE_DIR": "1",
-    }
+    assert calls[1][1] is None
