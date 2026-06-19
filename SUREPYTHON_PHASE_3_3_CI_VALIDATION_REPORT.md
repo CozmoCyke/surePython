@@ -31,6 +31,7 @@
   - explicit diagnostics directory creation
   - JUnit XML output for pytest
   - artifact upload for `.tmp/ci-results`
+- Fixed the public-contract preview hash helper to force CRLF when it creates the temporary smoke project, so Linux/macOS and Windows compute the same preview hash vectors.
 - Inspected the latest release-validation annotations and found the concrete backend failure:
   - `Backend 'setuptools.build_meta' is not available`
   - the `python -m build --sdist --wheel --no-isolation` step was running without the build backend visible in the CI environment
@@ -47,11 +48,14 @@
 - `python tools/check_release.py`
   - `PASS`
 - `build_preview_hash_vectors()` now matches `contracts/fixtures/preview_hash_vectors.json` exactly on the local checkout.
+- `python -m pytest tests\test_public_contract.py::test_public_contract_snapshots_match_current_code -q`
+  - `PASS`
 
 ## Current Status
 
 - The suspected global-`os.name` mutation has been removed.
 - Pytest diagnostics are now emitted as a downloadable artifact in CI.
+- The public-contract hash mismatch is now normalized across OS by forcing CRLF in the temporary contract project.
 - The packaging backend dependency issue has been addressed in `pyproject.toml`.
 - The repository remains on the feature branch and `main` is unchanged.
 - Status before the next remote run: `READY_FOR_REMOTE_CI_RETRY`

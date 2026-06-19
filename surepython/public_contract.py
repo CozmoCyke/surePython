@@ -322,7 +322,7 @@ def _git(command: list[str], *, cwd: Path) -> None:
 def _prepare_plan_project(root: Path, source: str) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     module = root / "service.py"
-    module.write_text(source, encoding="utf-8")
+    module.write_text(source, encoding="utf-8", newline="\r\n")
     tests_dir = root / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_smoke.py").write_text(
@@ -330,6 +330,7 @@ def _prepare_plan_project(root: Path, source: str) -> Path:
         "def test_smoke():\n"
         "    assert parse('x') == 'x'\n",
         encoding="utf-8",
+        newline="\r\n",
     )
     _git(["git", "init"], cwd=root)
     _git(["git", "config", "user.email", "surepython@example.com"], cwd=root)
