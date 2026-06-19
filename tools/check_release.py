@@ -186,10 +186,14 @@ def _inspect_sdist(sdist_path: Path) -> None:
     _assert_forbidden_absent(members, label="sdist")
 
 
+def _venv_python_parts(os_name: str) -> tuple[str, str]:
+    if os_name == "nt":
+        return ("Scripts", "python.exe")
+    return ("bin", "python")
+
+
 def _venv_python(venv_dir: Path) -> Path:
-    if os.name == "nt":
-        return venv_dir / "Scripts" / "python.exe"
-    return venv_dir / "bin" / "python"
+    return venv_dir.joinpath(*_venv_python_parts(os.name))
 
 
 def _create_venv(venv_dir: Path) -> Path:
