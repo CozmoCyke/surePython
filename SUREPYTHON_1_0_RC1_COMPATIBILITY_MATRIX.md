@@ -1,0 +1,70 @@
+# SurePython 1.0.0rc1 Compatibility Matrix
+
+Status: initial baseline
+
+## Declared Support
+
+`requires-python = ">=3.10"`
+
+The RC1 validation matrix should cover the announced range:
+
+- Python 3.10
+- Python 3.11
+- Python 3.12
+- Python 3.13
+- Python 3.14
+
+## Platform Targets
+
+- Windows
+- Ubuntu/Linux
+- macOS
+
+## Current Verified Baseline
+
+Phase 3.3 proved the distribution path on:
+
+- Windows 11 with Python 3.12
+- Linux with Python 3.12
+- macOS with Python 3.12
+
+Current local environment note:
+
+- `py` launcher reports no installed Pythons
+- the repository `.venv` is still the only immediately available interpreter for local smoke work
+
+## RC1 Validation Gap
+
+The following still need direct RC1 verification before the release candidate can be declared ready:
+
+- Python 3.10 clean install and smoke tests
+- Python 3.11 clean install and smoke tests
+- Python 3.13 clean install and smoke tests
+- Python 3.14 clean install and smoke tests
+- wheel installation in a fresh virtual environment
+- sdist installation in a fresh virtual environment
+- uninstall cleanup from both artifact types
+
+## Matrix Status
+
+| OS | Python | editable install | pytest | contracts | wheel | sdist | release validator | result | proof |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Windows | 3.12 | PASS | PASS | PASS | PASS | PASS | PASS | PASS | Phase 3.3 release evidence |
+| Windows | 3.10 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Windows | 3.11 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Windows | 3.13 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Windows | 3.14 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Ubuntu | 3.12 | PASS | PASS | PASS | PASS | PASS | PASS | PASS | Phase 3.3 release evidence |
+| Ubuntu | 3.10 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Ubuntu | 3.11 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Ubuntu | 3.13 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| Ubuntu | 3.14 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| macOS | 3.12 | PASS | PASS | PASS | PASS | PASS | PASS | PASS | Phase 3.3 release evidence |
+| macOS | 3.10 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| macOS | 3.11 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| macOS | 3.13 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+| macOS | 3.14 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
+
+## Matrix Rule
+
+If a version or platform is part of the release promise, it must be validated directly or explicitly removed from the promise before RC1 is tagged.
