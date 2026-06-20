@@ -47,7 +47,8 @@ def _extract_json_blocks(text: str) -> list[str]:
 def _build_preview_hash(project_root: Path, plan_data: dict[str, object], source: str) -> str:
     project_root.mkdir(parents=True, exist_ok=True)
     module = project_root / "service.py"
-    module.write_text(source, encoding="utf-8")
+    # Match the contract snapshot generator exactly so hashes stay stable across OSes.
+    module.write_text(source, encoding="utf-8", newline="\r\n")
     tests_dir = project_root / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_smoke.py").write_text(
@@ -55,6 +56,7 @@ def _build_preview_hash(project_root: Path, plan_data: dict[str, object], source
         "def test_smoke():\n"
         "    assert parse('x') == 'x'\n",
         encoding="utf-8",
+        newline="\r\n",
     )
     subprocess.run(["git", "init"], cwd=str(project_root), check=True, capture_output=True, text=True)
     subprocess.run(["git", "config", "user.email", "surepython@example.com"], cwd=str(project_root), check=True, capture_output=True, text=True)
