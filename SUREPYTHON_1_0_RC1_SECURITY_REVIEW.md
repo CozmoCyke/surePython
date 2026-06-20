@@ -73,3 +73,12 @@ The following jobs are now defined for remote execution and still need observed 
 - `release-validator`
 
 The `sdist-clean-install` local failure remains `ENVIRONMENT_ONLY` until a connected runner proves the same artifact installs successfully with build isolation intact.
+
+## RC1-COMPAT-001
+
+- `Classification initiale`: `RC_BLOCKER`
+- `Cause`: direct `tomllib` usage under Python 3.10 in the packaging metadata test and release validator
+- `Impact`: source-tests and release-validator jobs on Python 3.10
+- `Runtime wheel/sdist`: unaffected
+- `Corrective action`: conditional `tomli` backport in the dev extra and local tool/test imports
+- `State`: `FIX_PENDING_REMOTE_VALIDATION`

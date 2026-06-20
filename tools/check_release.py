@@ -13,6 +13,11 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist"
@@ -61,8 +66,6 @@ def _run(command: list[str], *, cwd: Path | None = None, env: dict[str, str] | N
 
 
 def _json_pyproject() -> dict[str, Any]:
-    import tomllib
-
     return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 

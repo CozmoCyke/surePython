@@ -36,6 +36,11 @@ RC1 can only be declared ready when all of the following are true:
   - Cause: network/socket access unavailable on this host
   - Product involved: not proven
   - Remote proof required: yes
+- `RC1-COMPAT-001`: FIX_PENDING_REMOTE_VALIDATION
+  - Context: direct `tomllib` usage under Python 3.10 in tests and release validator
+  - Cause: Python 3.10 does not provide `tomllib`
+  - Corrective action: conditional `tomli` backport in the dev extra and tool/test imports
+  - Remote proof required: yes
 
 ## Current Position
 

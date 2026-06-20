@@ -58,6 +58,16 @@ The following still need direct RC1 verification before the release candidate ca
 - uninstall cleanup from both artifact types
 - remote CI confirmation for all RC1 pass 2 jobs
 
+## RC1-COMPAT-001
+
+- Classification initiale: `RC_BLOCKER`
+- Cause: utilisation directe de `tomllib` sous Python 3.10
+- Impact: collecte des tests et release validator
+- Runtime wheel/sdist: non affecté
+- Correctif: fallback `tomli` conditionnel dans l'extra `dev`
+- Contrat public: inchangé
+- État: `FIX_PENDING_REMOTE_VALIDATION`
+
 ## Matrix Status
 
 | OS | Python | editable install | pytest | contracts | wheel | sdist | release validator | result | proof |

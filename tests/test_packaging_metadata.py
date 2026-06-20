@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 
 import surepython
 from surepython.package_resources import resource_text
@@ -28,6 +31,11 @@ def test_runtime_dependencies_exclude_dev_tools() -> None:
     dev = set(project["optional-dependencies"]["dev"])
     assert runtime == {"libcst>=1.8"}
     assert {"build>=1.2", "pytest>=9.0", "twine>=6.0"} <= dev
+    tomli_dependencies = [dependency for dependency in dev if dependency.startswith("tomli")]
+    assert len(tomli_dependencies) == 1
+    assert "python_version" in tomli_dependencies[0]
+    assert "3.11" in tomli_dependencies[0]
+    assert all(not dependency.startswith("tomli") for dependency in runtime)
     assert runtime.isdisjoint({"pytest>=9.0", "build>=1.2", "twine>=6.0"})
 
 
