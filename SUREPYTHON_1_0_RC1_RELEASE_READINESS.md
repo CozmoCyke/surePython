@@ -25,9 +25,17 @@ RC1 can only be declared ready when all of the following are true:
 - Local Python 3.12 via `py` launcher: NOT_AVAILABLE
 - Local Python 3.13: NOT_TESTED
 - Local Python 3.14: NOT_TESTED
+- Build distributions job: NOT_TESTED
+- Source tests job matrix: NOT_TESTED
 - Clean install from wheel: NOT_TESTED for RC1
 - Clean install from sdist: FAIL in this local environment because pip cannot fetch build dependencies under network restrictions
+- Release validator job: NOT_TESTED
 - Real-project coverage: NOT_TESTED for RC1
+- `RC1-ENV-001`: ENVIRONMENT_ONLY
+  - Context: isolated sdist install in a local fresh venv
+  - Cause: network/socket access unavailable on this host
+  - Product involved: not proven
+  - Remote proof required: yes
 
 ## Current Position
 
@@ -39,6 +47,8 @@ RC1 can only be declared ready when all of the following are true:
 
 RC1 is open and ready for stabilization work, but not yet ready for tagging.
 No code has been changed in this opening step.
+
+RC1 pass 2 has now been codified in the GitHub Actions workflow, but the remote matrix still needs to run before the compatibility baseline can be declared validated.
 
 ## Readiness Conclusion
 

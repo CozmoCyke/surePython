@@ -33,6 +33,18 @@ Current local environment note:
 - `py` launcher reports no installed Pythons
 - the repository `.venv` is still the only immediately available interpreter for local smoke work
 
+## RC1 Pass 2 Target Jobs
+
+The RC1 pass 2 workflow now defines the following jobs for remote validation:
+
+| Job | Scope | Current status | Evidence expected |
+| --- | --- | --- | --- |
+| `build-distributions` | Ubuntu / Python 3.12 | NOT_TESTED | wheel, sdist, proof JSON, twine check |
+| `source-tests` | Ubuntu / Python 3.10-3.14; Windows / Python 3.10, 3.12, 3.14; macOS / Python 3.10, 3.12, 3.14 | NOT_TESTED | editable install, pytest, contracts, compileall |
+| `wheel-clean-install` | Ubuntu / Python 3.10-3.14; Windows / Python 3.12; macOS / Python 3.12 | NOT_TESTED | install from the shared wheel artifact, import from site-packages, smoke commands |
+| `sdist-clean-install` | Ubuntu / Python 3.10-3.14; Windows / Python 3.12; macOS / Python 3.12 | NOT_TESTED | install from the shared sdist artifact, import from site-packages, smoke commands |
+| `release-validator` | Ubuntu / Python 3.10, 3.12, 3.14; Windows / Python 3.12; macOS / Python 3.12 | NOT_TESTED | full release chain, build, install, smoke, rollback |
+
 ## RC1 Validation Gap
 
 The following still need direct RC1 verification before the release candidate can be declared ready:
@@ -44,6 +56,7 @@ The following still need direct RC1 verification before the release candidate ca
 - wheel installation in a fresh virtual environment
 - sdist installation in a fresh virtual environment
 - uninstall cleanup from both artifact types
+- remote CI confirmation for all RC1 pass 2 jobs
 
 ## Matrix Status
 

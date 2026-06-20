@@ -61,3 +61,15 @@ This document will be updated only if a concrete RC blocker or RC-required issue
 - `RC_REQUIRED`: matrix coverage for 3.10, 3.11, 3.13, and 3.14 remains outstanding
 - `ENVIRONMENT_ONLY`: no locally installed `py` launcher interpreters were available to exercise the full matrix
 - `ENVIRONMENT_ONLY`: isolated sdist installation in a fresh venv failed on this host because pip could not download build dependencies under socket restrictions
+
+## RC1 Pass 2 Coverage Plan
+
+The following jobs are now defined for remote execution and still need observed results before RC1 can be promoted:
+
+- `build-distributions`
+- `source-tests`
+- `wheel-clean-install`
+- `sdist-clean-install`
+- `release-validator`
+
+The `sdist-clean-install` local failure remains `ENVIRONMENT_ONLY` until a connected runner proves the same artifact installs successfully with build isolation intact.

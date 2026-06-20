@@ -4,37 +4,257 @@ on:
   push:
   pull_request:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  test:
+  build-distributions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install build tools
+        run: python -m pip install build twine
+      - name: Clean dist directory
+        run: python -c "from pathlib import Path; import shutil; shutil.rmtree('dist', ignore_errors=True)"
+      - name: Build distributions
+        run: python -m build --sdist --wheel
+      - name: Validate distributions with twine
+        run: python -m twine check dist/*
+      - name: Record distribution proof
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import importlib.metadata as md
+          import json
+          import sys
+          from pathlib import Path
+
+          dist = Path("dist")
+          wheel = next(dist.glob("*.whl"))
+          sdist = next(dist.glob("*.tar.gz"))
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def version(name: str) -> str:
+              try:
+                  return md.version(name)
+              except md.PackageNotFoundError:
+                  return "not installed"
+
+          proof = {
+              "python_version": sys.version.split()[0],
+              "pip_version": version("pip"),
+              "build_version": version("build"),
+              "setuptools_version": version("setuptools"),
+              "wheel_version": version("wheel"),
+              "wheel_name": wheel.name,
+              "wheel_sha256": sha256(wheel),
+              "sdist_name": sdist.name,
+              "sdist_sha256": sha256(sdist),
+          }
+          (dist / "rc1-build-proof.json").write_text(
+              json.dumps(proof, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: surepython-rc1-distributions
+          path: dist/
+          retention-days: 7
+
+  source-tests:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        python-version: ["3.12"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.14"
+          - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.14"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
       - name: Install package
-        run: python -m pip install -e .[dev]
-      - name: Dump environment
-        run: python -c "import os, platform, sys; print(sys.version); print(platform.platform()); print(os.getcwd())"
+        run: python -m pip install -e ".[dev]"
       - name: Prepare test diagnostics
         run: python -c "from pathlib import Path; Path('.tmp/ci-results').mkdir(parents=True, exist_ok=True)"
       - name: Run tests
-        run: python tools/pytest_ci.py --basetemp .tmp/pytest_ci --junitxml .tmp/ci-results/junit.xml -x -vv --tb=long --durations=20
+        run: python tools/pytest_ci.py --basetemp .tmp/pytest_ci --junitxml .tmp/ci-results/junit.xml -q
       - name: Validate contracts
         run: python tools/check_contracts.py
-      - name: Validate release artifacts
-        run: python tools/release_ci.py
+      - name: Compile sources
+        run: python -m compileall -q surepython tools tests
       - name: Upload pytest diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pytest-diagnostics-${{ matrix.os }}-py${{ matrix.python-version }}
           path: .tmp/ci-results/
+          if-no-files-found: warn
+          retention-days: 7
+
+  wheel-clean-install:
+    needs: build-distributions
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: surepython-rc1-distributions
+          path: dist
+      - name: Prepare diagnostics
+        run: mkdir -p .tmp
+      - name: Validate wheel clean install
+        run: python tools/check_distribution_install.py --dist-dir dist --kind wheel --label wheel-clean-install | tee .tmp/wheel-clean-install.json
+      - name: Upload wheel clean install diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-clean-install-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: .tmp/
+          if-no-files-found: warn
+          retention-days: 7
+
+  sdist-clean-install:
+    needs: build-distributions
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: surepython-rc1-distributions
+          path: dist
+      - name: Prepare diagnostics
+        run: mkdir -p .tmp
+      - name: Validate sdist clean install
+        run: python tools/check_distribution_install.py --dist-dir dist --kind sdist --label sdist-clean-install | tee .tmp/sdist-clean-install.json
+      - name: Upload sdist clean install diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist-clean-install-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: .tmp/
+          if-no-files-found: warn
+          retention-days: 7
+
+  release-validator:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: windows-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install package
+        run: python -m pip install -e ".[dev]"
+      - name: Prepare diagnostics
+        run: mkdir -p .tmp
+      - name: Validate release artifacts
+        run: python tools/release_ci.py | tee .tmp/release-validator.json
+      - name: Upload release validator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validator-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: .tmp/
           if-no-files-found: warn
           retention-days: 7

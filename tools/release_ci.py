@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
+
+if __package__ in {None, ""}:  # pragma: no cover - script bootstrap
+    ROOT = Path(__file__).resolve().parents[1]
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
 
 
 def main(argv: list[str] | None = None) -> int:
