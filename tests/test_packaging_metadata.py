@@ -29,13 +29,13 @@ def test_runtime_dependencies_exclude_dev_tools() -> None:
     project = _pyproject()["project"]
     runtime = set(project["dependencies"])
     dev = set(project["optional-dependencies"]["dev"])
-    assert runtime == {"libcst>=1.8"}
+    assert runtime == {"libcst>=1.8", "tomli>=2; python_version < '3.11'"}
     assert {"build>=1.2", "pytest>=9.0", "twine>=6.0"} <= dev
-    tomli_dependencies = [dependency for dependency in dev if dependency.startswith("tomli")]
+    tomli_dependencies = [dependency for dependency in runtime if dependency.startswith("tomli")]
     assert len(tomli_dependencies) == 1
     assert "python_version" in tomli_dependencies[0]
     assert "3.11" in tomli_dependencies[0]
-    assert all(not dependency.startswith("tomli") for dependency in runtime)
+    assert all(not dependency.startswith("tomli") for dependency in dev)
     assert runtime.isdisjoint({"pytest>=9.0", "build>=1.2", "twine>=6.0"})
 
 
