@@ -60,3 +60,4 @@ This document will be updated only if a concrete RC blocker or RC-required issue
 - `RC_BLOCKER`: none proven yet
 - `RC_REQUIRED`: matrix coverage for 3.10, 3.11, 3.13, and 3.14 remains outstanding
 - `ENVIRONMENT_ONLY`: no locally installed `py` launcher interpreters were available to exercise the full matrix
+- `ENVIRONMENT_ONLY`: isolated sdist installation in a fresh venv failed on this host because pip could not download build dependencies under socket restrictions

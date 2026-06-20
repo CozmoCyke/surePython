@@ -65,6 +65,17 @@ The following still need direct RC1 verification before the release candidate ca
 | macOS | 3.13 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
 | macOS | 3.14 | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | NOT_TESTED | No local interpreter available |
 
+## First RC1 Local Validation Pass
+
+| OS | Python | editable install | pytest | contracts | wheel | sdist | release validator | result | proof |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Windows | 3.12.13 (`.venv`) | PASS | PASS (`311 passed`) | PASS | PASS | FAIL | FAIL | `ENVIRONMENT_ONLY` for isolated sdist build dependencies | `tools/check_release.py` failed because pip could not fetch `setuptools>=68` in a fresh venv under local network/socket restrictions |
+| Windows | 3.12.13 (`.venv`) | PASS | PASS (`14 passed`) | PASS | N/A | N/A | N/A | Targeted contract and packaging tests | `tests/test_check_release.py`, `tests/test_packaging_metadata.py`, `tests/test_public_contract.py` |
+
+## Interpretive Note
+
+This first pass does **not** prove RC1 readiness. It only proves that the current codebase still passes the full test suite on the repository `.venv` and that the release validator currently encounters an environment-only obstacle when it tries to install the sdist into a fresh venv without network access.
+
 ## Matrix Rule
 
 If a version or platform is part of the release promise, it must be validated directly or explicitly removed from the promise before RC1 is tagged.

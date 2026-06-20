@@ -26,7 +26,7 @@ RC1 can only be declared ready when all of the following are true:
 - Local Python 3.13: NOT_TESTED
 - Local Python 3.14: NOT_TESTED
 - Clean install from wheel: NOT_TESTED for RC1
-- Clean install from sdist: NOT_TESTED for RC1
+- Clean install from sdist: FAIL in this local environment because pip cannot fetch build dependencies under network restrictions
 - Real-project coverage: NOT_TESTED for RC1
 
 ## Current Position
@@ -44,3 +44,4 @@ No code has been changed in this opening step.
 
 - `READY_FOR_1.0.0_RC1_TAG`: not yet
 - `RC1_STABILIZATION_IN_PROGRESS`: yes
+- `ENVIRONMENT_ONLY` issue observed for isolated sdist install in a fresh venv on this host
